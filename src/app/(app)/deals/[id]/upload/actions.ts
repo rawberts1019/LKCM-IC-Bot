@@ -6,8 +6,6 @@ import { requireWorkspaceAccess, canManageWorkspace } from "@/lib/access";
 import { logAudit } from "@/lib/audit";
 import { putObject, storageKeyForDocument } from "@/lib/storage";
 
-export const maxDuration = 60;
-
 const MAX_SIZE_BYTES = 32 * 1024 * 1024; // Anthropic PDF limit; larger docs need chunking
 const SUPPORTED_MIMES = new Set([
   "application/pdf"

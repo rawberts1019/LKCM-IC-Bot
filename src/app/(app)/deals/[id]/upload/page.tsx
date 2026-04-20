@@ -6,6 +6,9 @@ import { formatBytes, formatDateTime } from "@/lib/utils";
 import { UploadForm } from "./upload-form";
 import { DeleteButton } from "./delete-button";
 
+// Multi-PDF uploads to Blob can exceed the default 10s; give the full budget.
+export const maxDuration = 60;
+
 export default async function UploadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { user, membership } = await requireWorkspaceAccess(id);

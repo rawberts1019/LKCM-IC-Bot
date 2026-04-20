@@ -5,6 +5,10 @@ import { requireWorkspaceAccess } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
 import { Composer } from "./composer";
 
+// Claude PDF reads can take 20-40s on a full IC packet; give server actions
+// invoked from this route the full Vercel function budget.
+export const maxDuration = 60;
+
 export default async function ChatPage({
   params,
   searchParams

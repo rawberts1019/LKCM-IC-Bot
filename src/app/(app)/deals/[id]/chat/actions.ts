@@ -10,8 +10,6 @@ import { anthropic, MODEL } from "@/lib/anthropic";
 import { getObjectBytes } from "@/lib/storage";
 import { env } from "@/env";
 
-export const maxDuration = 60;
-
 const askSchema = z.object({
   question: z.string().trim().min(2).max(4000),
   threadId: z.string().optional()
