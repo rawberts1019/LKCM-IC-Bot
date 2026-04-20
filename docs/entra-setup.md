@@ -29,9 +29,11 @@ Then **Certificates & secrets → New client secret**, copy the value (not the I
 2. Add: `openid`, `profile`, `email`, `offline_access`, `User.Read`.
 3. Click **Grant admin consent for LKCM**.
 
-### Directory autocomplete (for Add-member UI — optional but recommended)
+### Directory autocomplete (optional — requires Global Admin consent)
 
-Adds live "type a name, see LKCM employees" search when adding deal members. Uses an **application** permission (app calls Graph on its own, not as the signed-in user) so it works without per-user token refresh.
+The Add-member form suggests people as you type. By default, suggestions come from LKCM employees who have **used the app before** (their User row already exists). That's enough for most cases and requires no extra Entra setup.
+
+If you want "type a name, see *anyone* in the LKCM directory" — including people who haven't used the app yet — add this application permission. It requires **Global Administrator** consent, so skip if your CTO doesn't have that role.
 
 1. **API permissions → Add a permission → Microsoft Graph → Application permissions**.
 2. Add: `User.Read.All`.
@@ -39,7 +41,7 @@ Adds live "type a name, see LKCM employees" search when adding deal members. Use
 
 Verification: the "Status" column should show a green check with **Granted for LKCM**. If it doesn't show up after consent, refresh the page.
 
-If you skip this step, the member-add form still works — you just type an email manually and the row won't pick up the person's name until they sign in.
+The app merges Graph results with the local list silently if this is granted, and falls through cleanly if it isn't. No code change either way.
 
 ## 4. Enforce MFA via Microsoft Authenticator
 

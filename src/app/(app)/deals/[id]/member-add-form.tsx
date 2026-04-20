@@ -176,7 +176,8 @@ export function MemberAddForm({ workspaceId }: { workspaceId: string }) {
         </div>
       ) : null}
       <p className="mt-2 text-xs text-slate-500">
-        Suggestions come live from the LKCM directory. Pick someone or type a full email.
+        Suggestions come from LKCM employees who&apos;ve used the app before. For a new
+        person, just type their full email.
       </p>
     </form>
   );
