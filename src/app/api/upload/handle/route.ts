@@ -3,6 +3,14 @@ import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
+import {
+  MIME_PDF,
+  MIMES_NEEDING_EXTRACTION,
+  SUPPORTED_UPLOAD_MIMES,
+  extractText
+} from "@/lib/extraction";
+
+const EXTRACTED_CHUNK_SIZE = 10_000;
 
 /**
  * Client-direct upload endpoint. The Vercel Blob client calls this URL twice
@@ -55,7 +63,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
 
         return {
-          allowedContentTypes: ["application/pdf"],
+          allowedContentTypes: [...SUPPORTED_UPLOAD_MIMES],
           maximumSizeInBytes: 32 * 1024 * 1024,
           addRandomSuffix: false,
           tokenPayload: JSON.stringify({
@@ -73,24 +81,60 @@ export async function POST(request: Request): Promise<NextResponse> {
           filename: string;
           sizeBytes: number;
         };
+        const mime = blob.contentType ?? MIME_PDF;
+        const needsExtraction = MIMES_NEEDING_EXTRACTION.has(mime);
+
         const doc = await prisma.document.create({
           data: {
             workspaceId: payload.workspaceId,
             uploadedById: payload.userId,
             filename: payload.filename,
-            mimeType: blob.contentType ?? "application/pdf",
+            mimeType: mime,
             sizeBytes: payload.sizeBytes,
             storageKey: blob.url,
-            status: "ready"
+            status: needsExtraction ? "processing" : "ready"
           }
         });
+
+        if (needsExtraction) {
+          try {
+            const res = await fetch(blob.url);
+            if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+            const bytes = Buffer.from(await res.arrayBuffer());
+            const extracted = await extractText(bytes, mime);
+
+            const chunks: { documentId: string; workspaceId: string; chunkIndex: number; content: string }[] = [];
+            for (let i = 0, idx = 0; i < extracted.text.length; i += EXTRACTED_CHUNK_SIZE, idx++) {
+              chunks.push({
+                documentId: doc.id,
+                workspaceId: payload.workspaceId,
+                chunkIndex: idx,
+                content: extracted.text.slice(i, i + EXTRACTED_CHUNK_SIZE)
+              });
+            }
+            if (chunks.length > 0) {
+              await prisma.documentChunk.createMany({ data: chunks });
+            }
+            await prisma.document.update({
+              where: { id: doc.id },
+              data: { status: "ready", pageCount: extracted.pageCount }
+            });
+          } catch (e) {
+            const reason = e instanceof Error ? e.message : String(e);
+            await prisma.document.update({
+              where: { id: doc.id },
+              data: { status: "failed", statusReason: reason.slice(0, 500) }
+            });
+          }
+        }
+
         await logAudit({
           actorId: payload.userId,
           action: "document.upload",
           targetType: "document",
           targetId: doc.id,
           workspaceId: payload.workspaceId,
-          metadata: { filename: payload.filename, sizeBytes: payload.sizeBytes }
+          metadata: { filename: payload.filename, sizeBytes: payload.sizeBytes, mimeType: mime }
         });
       }
     });

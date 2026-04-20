@@ -19,6 +19,8 @@
     "@prisma/client": "^5.22.0",
     "@vercel/blob": "^0.27.0",
     "clsx": "^2.1.1",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.8.0",
     "lucide-react": "^0.460.0",
     "next": "^15.1.0",
     "next-auth": "5.0.0-beta.25",
@@ -27,6 +29,7 @@
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
     "tailwind-merge": "^2.5.4",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.23.8"
   },
   "devDependencies": {

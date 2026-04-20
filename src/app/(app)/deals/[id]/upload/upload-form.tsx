@@ -4,6 +4,13 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 
+const ACCEPT = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+].join(",");
+
 function safeName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
@@ -73,13 +80,13 @@ export function UploadForm({ workspaceId }: { workspaceId: string }) {
             : `${files.length} file${files.length === 1 ? "" : "s"} selected`}
         </div>
         <div className="mt-1 text-xs text-slate-500">
-          PDFs only for now. Max 32&nbsp;MB per file. DOCX / PPTX / XLSX coming next.
+          PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx). Max 32&nbsp;MB per file.
         </div>
         <input
           id="file-input"
           type="file"
           multiple
-          accept="application/pdf"
+          accept={ACCEPT}
           onChange={handlePick}
           disabled={isPending}
           className="hidden"

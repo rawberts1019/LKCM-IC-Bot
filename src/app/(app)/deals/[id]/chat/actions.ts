@@ -10,6 +10,7 @@ import { createNotifications, dealTeamMemberIds } from "@/lib/notifications";
 import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { getObjectBytes } from "@/lib/storage";
+import { MIME_PDF } from "@/lib/extraction";
 import { env } from "@/env";
 
 const askSchema = z.object({
@@ -108,19 +109,44 @@ export async function askQuestion(workspaceId: string, formData: FormData): Prom
     orderBy: { createdAt: "asc" }
   });
 
-  // Pull all ready-state documents and base64-encode them
+  // Build one Claude document block per uploaded file. PDFs go as native
+  // base64 document blocks (Claude reads them with vision + text); everything
+  // else (DOCX / PPTX / XLSX) was extracted to text at upload time and stored
+  // as DocumentChunk rows, which we stitch together into a text document block.
   const docContent = await Promise.all(
     documents.map(async (d) => {
-      const bytes = await getObjectBytes(d.storageKey);
-      const base64 = Buffer.from(bytes).toString("base64");
+      if (d.mimeType === MIME_PDF) {
+        const bytes = await getObjectBytes(d.storageKey);
+        const base64 = Buffer.from(bytes).toString("base64");
+        return {
+          doc: d,
+          block: {
+            type: "document" as const,
+            source: {
+              type: "base64" as const,
+              media_type: "application/pdf" as const,
+              data: base64
+            },
+            title: d.filename,
+            cache_control: { type: "ephemeral" as const }
+          }
+        };
+      }
+
+      const chunks = await prisma.documentChunk.findMany({
+        where: { documentId: d.id },
+        orderBy: { chunkIndex: "asc" },
+        select: { content: true }
+      });
+      const text = chunks.map((c) => c.content).join("");
       return {
         doc: d,
         block: {
           type: "document" as const,
           source: {
-            type: "base64" as const,
-            media_type: "application/pdf" as const,
-            data: base64
+            type: "text" as const,
+            media_type: "text/plain" as const,
+            data: text || "(this document was empty or could not be read)"
           },
           title: d.filename,
           cache_control: { type: "ephemeral" as const }
