@@ -178,7 +178,8 @@ export async function askQuestion(workspaceId: string, formData: FormData): Prom
       system: SYSTEM_PROMPT,
       tools: [ANSWER_TOOL],
       tool_choice: { type: "tool", name: "submit_answer" },
-      messages: apiMessages
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages: apiMessages as any
     });
     const toolUse = response.content.find((b) => b.type === "tool_use");
     if (!toolUse || toolUse.type !== "tool_use") {
