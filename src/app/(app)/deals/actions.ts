@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { requireUser, requireWorkspaceAccess } from "@/lib/access";
 import { logAudit } from "@/lib/audit";
 import { searchDirectory } from "@/lib/graph";
+import { getDeal as getPipedriveDeal, dealUrl } from "@/lib/pipedrive";
 
 const createDealSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -46,6 +47,97 @@ export async function createDeal(formData: FormData): Promise<void> {
     targetId: workspace.id,
     workspaceId: workspace.id,
     metadata: { name: workspace.name, dealCode: workspace.dealCode }
+  });
+
+  revalidatePath("/deals");
+  redirect(`/deals/${workspace.id}`);
+}
+
+const importSchema = z.object({
+  pipedriveDealId: z.coerce.number().int().positive()
+});
+
+/**
+ * Creates a workspace from a Pipedrive deal. Idempotent on pipedriveDealId —
+ * if this deal was already imported, we return the existing workspace URL
+ * instead of failing.
+ *
+ * Auto-adds:
+ *   - the current user as owner
+ *   - the Pipedrive deal owner (matched by email to an existing User row,
+ *     or upserted if the email doesn't exist yet) as an additional owner.
+ */
+export async function importFromPipedrive(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const parsed = importSchema.safeParse({
+    pipedriveDealId: formData.get("pipedriveDealId")
+  });
+  if (!parsed.success) throw new Error("Invalid Pipedrive deal id.");
+
+  // Idempotency: if we already imported this deal, just route there.
+  const existing = await prisma.workspace.findUnique({
+    where: { pipedriveDealId: parsed.data.pipedriveDealId }
+  });
+  if (existing) {
+    redirect(`/deals/${existing.id}`);
+  }
+
+  const deal = await getPipedriveDeal(parsed.data.pipedriveDealId);
+  if (!deal) throw new Error("Pipedrive deal not found.");
+
+  const url = dealUrl(deal.id);
+
+  const workspace = await prisma.workspace.create({
+    data: {
+      name: deal.title,
+      orgName: deal.orgName,
+      stageName: deal.stageName,
+      valueCents:
+        typeof deal.value === "number" ? BigInt(Math.round(deal.value * 100)) : null,
+      currency: deal.currency,
+      pipedriveDealId: deal.id,
+      pipedriveUrl: url,
+      createdById: user.id,
+      members: { create: { userId: user.id, role: "owner" } }
+    }
+  });
+
+  // If the Pipedrive deal has a different owner whose email we recognize,
+  // add them as owner too. Best-effort — don't fail the import if this step
+  // trips.
+  if (deal.ownerEmail && deal.ownerEmail.toLowerCase() !== user.email.toLowerCase()) {
+    try {
+      const owner = await prisma.user.upsert({
+        where: { email: deal.ownerEmail.toLowerCase() },
+        update: { name: deal.ownerName ?? undefined },
+        create: {
+          email: deal.ownerEmail.toLowerCase(),
+          name: deal.ownerName ?? undefined,
+          role: "member"
+        }
+      });
+      await prisma.workspaceMember.upsert({
+        where: { workspaceId_userId: { workspaceId: workspace.id, userId: owner.id } },
+        update: { role: "owner" },
+        create: { workspaceId: workspace.id, userId: owner.id, role: "owner" }
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  await logAudit({
+    actorId: user.id,
+    action: "workspace.import.pipedrive",
+    targetType: "workspace",
+    targetId: workspace.id,
+    workspaceId: workspace.id,
+    metadata: {
+      pipedriveDealId: deal.id,
+      title: deal.title,
+      orgName: deal.orgName,
+      stageName: deal.stageName
+    }
   });
 
   revalidatePath("/deals");

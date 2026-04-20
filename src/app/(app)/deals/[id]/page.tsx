@@ -38,9 +38,25 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         <div className="mt-2 flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">{workspace.name}</h1>
-            {workspace.dealCode ? (
-              <div className="text-sm text-slate-500">{workspace.dealCode}</div>
-            ) : null}
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
+              {workspace.dealCode ? <span>{workspace.dealCode}</span> : null}
+              {workspace.orgName ? <span>{workspace.orgName}</span> : null}
+              {workspace.stageName ? (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                  {workspace.stageName}
+                </span>
+              ) : null}
+              {workspace.pipedriveUrl ? (
+                <a
+                  href={workspace.pipedriveUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-xs text-slate-700 underline underline-offset-2 hover:text-slate-900"
+                >
+                  View in Pipedrive &rarr;
+                </a>
+              ) : null}
+            </div>
           </div>
           <div className="flex gap-2">
             <Link

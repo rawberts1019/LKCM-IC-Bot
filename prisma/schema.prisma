@@ -83,6 +83,16 @@ model Workspace {
   name         String
   dealCode     String?         @unique
   status       WorkspaceStatus @default(active)
+  // Lightweight metadata; surface in UI and feed to model as deal context.
+  orgName      String?
+  stageName    String?
+  valueCents   BigInt?
+  currency     String?
+  // Pipedrive linkage. Set on manual import; used to show a "View in
+  // Pipedrive" link on the deal detail page and (later) to gate webhook
+  // auto-updates to the right workspace.
+  pipedriveDealId Int?         @unique
+  pipedriveUrl    String?
   createdById  String
   createdBy    User            @relation("WorkspaceCreatedBy", fields: [createdById], references: [id])
   createdAt    DateTime        @default(now())
