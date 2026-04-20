@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
+import { Composer } from "./composer";
 
 export default async function ChatPage({
   params,
@@ -13,27 +14,40 @@ export default async function ChatPage({
 }) {
   const { id } = await params;
   const { thread: threadId } = await searchParams;
-  const { user } = await requireWorkspaceAccess(id);
+  const { user, membership } = await requireWorkspaceAccess(id);
 
   const workspace = await prisma.workspace.findUnique({ where: { id } });
   if (!workspace) notFound();
 
-  // Threads are per-user within a deal workspace. Deal team sees all threads
-  // for their deal; IC members see only their own.
+  const canManage = user.role === "admin" || membership?.role === "owner" || membership?.role === "dealteam";
+
+  // Deal-team members see all threads for their deal; IC members see only their own.
   const threads = await prisma.thread.findMany({
-    where: { workspaceId: id, createdById: user.id },
+    where: canManage ? { workspaceId: id } : { workspaceId: id, createdById: user.id },
     orderBy: { updatedAt: "desc" },
-    take: 20
+    take: 30,
+    include: { createdBy: { select: { email: true, name: true } } }
   });
 
   const activeThread = threadId
     ? await prisma.thread.findFirst({
-        where: { id: threadId, workspaceId: id },
+        where: {
+          id: threadId,
+          workspaceId: id,
+          ...(canManage ? {} : { createdById: user.id })
+        },
         include: {
-          messages: { orderBy: { createdAt: "asc" } }
+          messages: {
+            orderBy: { createdAt: "asc" },
+            where: { status: { not: "superseded" } }
+          }
         }
       })
     : null;
+
+  const documentsReady = await prisma.document.count({
+    where: { workspaceId: id, status: "ready" }
+  });
 
   return (
     <div className="grid grid-cols-12 gap-6">
@@ -69,7 +83,12 @@ export default async function ChatPage({
                   <div className="truncate font-medium text-slate-900">
                     {t.title ?? "Untitled"}
                   </div>
-                  <div className="text-xs text-slate-500">{formatDateTime(t.updatedAt)}</div>
+                  <div className="text-xs text-slate-500">
+                    {canManage && t.createdById !== user.id ? (
+                      <span>{t.createdBy.name ?? t.createdBy.email} · </span>
+                    ) : null}
+                    {formatDateTime(t.updatedAt)}
+                  </div>
                 </Link>
               </li>
             ))
@@ -78,53 +97,83 @@ export default async function ChatPage({
       </aside>
 
       <section className="col-span-12 md:col-span-8 lg:col-span-9">
-        <div className="flex h-[calc(100vh-12rem)] flex-col rounded-lg border border-slate-200 bg-white">
+        <div className="flex h-[calc(100vh-10rem)] flex-col rounded-lg border border-slate-200 bg-white">
           <div className="flex-1 overflow-y-auto p-6">
-            {!activeThread ? (
-              <EmptyChatState />
-            ) : activeThread.messages.length === 0 ? (
-              <EmptyChatState />
+            {!activeThread || activeThread.messages.length === 0 ? (
+              <EmptyChatState documentsReady={documentsReady} />
             ) : (
               <ul className="space-y-5">
-                {activeThread.messages.map((m) => (
-                  <li key={m.id} className="flex flex-col gap-1">
-                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      {m.role === "user" ? "You" : m.role === "dealteam" ? "Deal team" : "IC Bot"}
-                    </div>
-                    <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900">
-                      {m.content}
-                    </div>
-                    {m.status === "queued" ? (
-                      <div className="text-xs text-amber-700">
-                        The deal team is reviewing this — you'll get an answer shortly.
+                {activeThread.messages.map((m) => {
+                  const sources =
+                    (m.citationsJson as { sources?: Array<{ filename: string; page?: number }> } | null)
+                      ?.sources ?? [];
+                  return (
+                    <li key={m.id} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <span>
+                          {m.role === "user"
+                            ? "You"
+                            : m.role === "dealteam"
+                              ? "Deal team"
+                              : "IC Bot"}
+                        </span>
+                        {m.status === "queued" ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                            Under review
+                          </span>
+                        ) : null}
+                        {m.confidence !== null && m.confidence !== undefined && m.role === "assistant" ? (
+                          <span className="text-xs text-slate-400">
+                            conf {(m.confidence * 100).toFixed(0)}%
+                          </span>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </li>
-                ))}
+                      <div
+                        className={`whitespace-pre-wrap rounded-lg border p-3 text-sm ${
+                          m.role === "user"
+                            ? "border-slate-200 bg-slate-50 text-slate-900"
+                            : m.role === "dealteam"
+                              ? "border-indigo-200 bg-indigo-50 text-slate-900"
+                              : "border-slate-200 bg-white text-slate-900"
+                        }`}
+                      >
+                        {m.content}
+                      </div>
+                      {sources.length > 0 && m.role === "assistant" ? (
+                        <details className="mt-1 text-xs text-slate-600">
+                          <summary className="cursor-pointer text-slate-500 hover:text-slate-700">
+                            {sources.length} source{sources.length === 1 ? "" : "s"}
+                          </summary>
+                          <ul className="mt-1 space-y-1 pl-3">
+                            {sources.map((s, i) => (
+                              <li key={i}>
+                                <span className="font-medium">{s.filename}</span>
+                                {s.page ? `, page ${s.page}` : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : null}
+                      {m.status === "queued" ? (
+                        <div className="text-xs text-amber-700">
+                          {canManage
+                            ? "This answer is in the review queue — approve or override it there."
+                            : "The deal team is reviewing this — you'll get an answer shortly."}
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
 
           <div className="border-t border-slate-200 p-4">
-            {/* Week 2: wire to server action that runs retrieval + Claude + confidence routing */}
-            <form className="flex gap-2" action="#">
-              <input
-                name="q"
-                placeholder="Ask about this deal..."
-                disabled
-                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
-              />
-              <button
-                type="submit"
-                disabled
-                className="rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-500"
-              >
-                Send
-              </button>
-            </form>
-            <p className="mt-2 text-xs text-slate-500">
-              Chat is wired in week 2 once documents can be ingested and Claude is reachable.
-            </p>
+            <Composer
+              workspaceId={id}
+              threadId={activeThread?.id}
+              documentsReady={documentsReady}
+            />
           </div>
         </div>
       </section>
@@ -132,15 +181,25 @@ export default async function ChatPage({
   );
 }
 
-function EmptyChatState() {
+function EmptyChatState({ documentsReady }: { documentsReady: number }) {
   return (
     <div className="flex h-full flex-col items-center justify-center text-center text-sm text-slate-500">
-      <div className="max-w-sm">
+      <div className="max-w-md">
         <p className="font-medium text-slate-700">Ask anything about this deal.</p>
         <p className="mt-2">
-          Answers cite the source documents the deal team uploaded. Low-confidence or
-          sensitive questions are routed to the deal team for review.
+          Claude reads all uploaded documents to answer. Answers cite the files they came from.
+          Low-confidence or sensitive questions are routed to the deal team for review before the
+          asker sees them.
         </p>
+        {documentsReady === 0 ? (
+          <p className="mt-3 text-amber-700">
+            No documents ready yet. Upload something first.
+          </p>
+        ) : (
+          <p className="mt-3 text-slate-400">
+            {documentsReady} document{documentsReady === 1 ? "" : "s"} loaded.
+          </p>
+        )}
       </div>
     </div>
   );

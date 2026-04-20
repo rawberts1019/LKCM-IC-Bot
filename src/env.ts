@@ -21,7 +21,8 @@ const schema = z.object({
   AWS_REGION: z.string().default("us-east-1"),
   AWS_BEDROCK_MODEL_ID: z.string().default("anthropic.claude-sonnet-4-6"),
 
-  STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
+  STORAGE_PROVIDER: z.enum(["vercel-blob", "s3"]).default("vercel-blob"),
+  BLOB_READ_WRITE_TOKEN: z.string().optional(),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().default("us-east-1"),
 

@@ -3,6 +3,11 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess, canManageWorkspace } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
+import { ReviewItem } from "./review-item";
+
+type Citations = {
+  sources?: Array<{ filename: string; page?: number; snippet?: string }>;
+};
 
 export default async function ReviewQueuePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -24,7 +29,16 @@ export default async function ReviewQueuePage({ params }: { params: Promise<{ id
     include: {
       message: {
         include: {
-          thread: { include: { createdBy: { select: { email: true, name: true } } } }
+          thread: {
+            include: {
+              createdBy: { select: { email: true, name: true } },
+              messages: {
+                where: { role: "user" },
+                orderBy: { createdAt: "desc" },
+                take: 1
+              }
+            }
+          }
         }
       }
     }
@@ -38,7 +52,8 @@ export default async function ReviewQueuePage({ params }: { params: Promise<{ id
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Review queue</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Questions the bot wasn't confident enough to auto-answer. Approve, edit, or reply on top.
+          Questions the bot wasn&apos;t confident enough to auto-answer, or flagged as sensitive.
+          Approve, edit, or reply on top.
         </p>
       </div>
 
@@ -47,25 +62,35 @@ export default async function ReviewQueuePage({ params }: { params: Promise<{ id
           Queue is clear.
         </div>
       ) : (
-        <ul className="space-y-3">
-          {items.map((item) => (
-            <li key={item.id} className="rounded-lg border border-slate-200 bg-white p-5">
-              <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
-                <span>
-                  Asked by{" "}
-                  {item.message.thread.createdBy.name ?? item.message.thread.createdBy.email} ·{" "}
-                  {formatDateTime(item.createdAt)}
-                </span>
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                  {item.reason}
-                </span>
-              </div>
-              <div className="text-sm text-slate-900">{item.message.content}</div>
-              <div className="mt-3 text-xs text-slate-500">
-                Approve / edit / reply flow lands in week 2.
-              </div>
-            </li>
-          ))}
+        <ul className="space-y-4">
+          {items.map((item) => {
+            const citations = (item.message.citationsJson as Citations | null) ?? {};
+            const sources = citations.sources ?? [];
+            const askerName =
+              item.message.thread.createdBy.name ?? item.message.thread.createdBy.email;
+            const question =
+              item.message.thread.messages[0]?.content ?? "(question text unavailable)";
+            return (
+              <li key={item.id} className="rounded-lg border border-slate-200 bg-white p-5">
+                <div className="mb-3 flex items-center justify-between text-xs text-slate-500">
+                  <span>
+                    Asked by {askerName} · {formatDateTime(item.createdAt)}
+                  </span>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                    {item.reason}
+                  </span>
+                </div>
+                <ReviewItem
+                  workspaceId={id}
+                  messageId={item.message.id}
+                  draftAnswer={item.message.content}
+                  question={question}
+                  confidence={item.message.confidence ?? 0}
+                  sources={sources}
+                />
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
