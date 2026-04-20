@@ -14,7 +14,7 @@ export type PutResult = {
  */
 export async function putObject(
   key: string,
-  bytes: Uint8Array | Buffer,
+  bytes: Buffer,
   contentType: string
 ): Promise<PutResult> {
   if (env.STORAGE_PROVIDER !== "vercel-blob") {

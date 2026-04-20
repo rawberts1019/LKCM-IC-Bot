@@ -50,7 +50,7 @@ export async function uploadDocuments(workspaceId: string, formData: FormData): 
     });
 
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
+      const bytes = Buffer.from(await file.arrayBuffer());
       const key = storageKeyForDocument(workspaceId, doc.id, file.name);
       const { storageKey } = await putObject(key, bytes, file.type);
 
