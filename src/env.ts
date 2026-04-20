@@ -29,9 +29,9 @@ const schema = z.object({
   CONFIDENCE_AUTO_SEND_THRESHOLD: z.coerce.number().min(0).max(1).default(0.75),
 
   // Pipedrive integration — optional. Manual import is hidden when unset.
-  // Use a service-account or admin user's API token so the bot sees all deals.
+  // Use a service-account or admin user's API key so the bot sees all deals.
   // Get one at: Pipedrive → Settings → Personal preferences → API.
-  PIPEDRIVE_API_TOKEN: z.string().optional(),
+  PIPEDRIVE_API_KEY: z.string().optional(),
   PIPEDRIVE_COMPANY_DOMAIN: z.string().optional()
 });
 

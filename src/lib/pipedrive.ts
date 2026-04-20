@@ -10,7 +10,7 @@ import { env } from "@/env";
 const BASE = "https://api.pipedrive.com/v1";
 
 export function isPipedriveConfigured(): boolean {
-  return Boolean(env.PIPEDRIVE_API_TOKEN);
+  return Boolean(env.PIPEDRIVE_API_KEY);
 }
 
 export type PipedriveDealSummary = {
@@ -55,11 +55,11 @@ type RawDeal = {
 type RawStage = { id: number; name: string };
 
 async function fetchJson<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
-  if (!env.PIPEDRIVE_API_TOKEN) {
-    throw new Error("PIPEDRIVE_API_TOKEN is not configured.");
+  if (!env.PIPEDRIVE_API_KEY) {
+    throw new Error("PIPEDRIVE_API_KEY is not configured.");
   }
   const url = new URL(`${BASE}${path}`);
-  url.searchParams.set("api_token", env.PIPEDRIVE_API_TOKEN);
+  url.searchParams.set("api_token", env.PIPEDRIVE_API_KEY);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, String(v));
   }

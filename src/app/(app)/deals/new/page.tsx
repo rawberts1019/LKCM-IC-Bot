@@ -26,7 +26,7 @@ export default async function NewDealPage() {
         <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-600">
           <div className="font-medium text-slate-800">Pipedrive import not available.</div>
           <div className="mt-1">
-            The server doesn&apos;t see <code className="rounded bg-slate-200 px-1">PIPEDRIVE_API_TOKEN</code>. Set
+            The server doesn&apos;t see <code className="rounded bg-slate-200 px-1">PIPEDRIVE_API_KEY</code>. Set
             it in <em>Vercel Project → Settings → Environment Variables</em> for the same environment
             you&apos;re viewing (Production or Preview), then redeploy — Vercel does not hot-apply
             env changes.

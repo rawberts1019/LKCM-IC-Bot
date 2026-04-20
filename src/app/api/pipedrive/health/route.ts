@@ -12,17 +12,17 @@ export const runtime = "nodejs";
 export async function GET(): Promise<NextResponse> {
   await requireAdmin();
 
-  const tokenPresent = Boolean(env.PIPEDRIVE_API_TOKEN);
+  const keyPresent = Boolean(env.PIPEDRIVE_API_KEY);
   const domainPresent = Boolean(env.PIPEDRIVE_COMPANY_DOMAIN);
 
-  if (!tokenPresent) {
+  if (!keyPresent) {
     return NextResponse.json({
       ok: false,
       configured: false,
-      tokenPresent,
+      keyPresent,
       domainPresent,
       reason:
-        "PIPEDRIVE_API_TOKEN is not set. Add it in Vercel Project → Settings → Environment Variables and redeploy."
+        "PIPEDRIVE_API_KEY is not set. Add it in Vercel Project → Settings → Environment Variables and redeploy."
     });
   }
 
@@ -30,7 +30,7 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({
       ok: false,
       configured: false,
-      tokenPresent,
+      keyPresent,
       domainPresent,
       reason: "Env var parsed as empty."
     });
@@ -41,7 +41,7 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({
       ok: true,
       configured: true,
-      tokenPresent,
+      keyPresent,
       domainPresent,
       sampleDealCount: deals.length,
       firstThreeTitles: deals.slice(0, 3).map((d) => d.title)
@@ -50,7 +50,7 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({
       ok: false,
       configured: true,
-      tokenPresent,
+      keyPresent,
       domainPresent,
       reason: e instanceof Error ? e.message : "Pipedrive API request failed."
     });
