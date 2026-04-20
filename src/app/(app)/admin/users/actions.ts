@@ -11,16 +11,16 @@ const schema = z.object({
   role: z.enum(["admin", "member"])
 });
 
-export async function setUserRole(formData: FormData) {
+export async function setUserRole(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   const parsed = schema.safeParse({
     userId: formData.get("userId"),
     role: formData.get("role")
   });
-  if (!parsed.success) return { ok: false as const, error: "Invalid input" };
+  if (!parsed.success) throw new Error("Invalid input");
 
   if (parsed.data.userId === admin.id && parsed.data.role === "member") {
-    return { ok: false as const, error: "You can't demote yourself." };
+    throw new Error("You can't demote yourself.");
   }
 
   await prisma.user.update({
@@ -37,5 +37,4 @@ export async function setUserRole(formData: FormData) {
   });
 
   revalidatePath("/admin/users");
-  return { ok: true as const };
 }

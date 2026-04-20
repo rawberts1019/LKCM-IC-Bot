@@ -17,14 +17,14 @@ const createDealSchema = z.object({
     .transform((v) => (v ? v : undefined))
 });
 
-export async function createDeal(formData: FormData) {
+export async function createDeal(formData: FormData): Promise<void> {
   const user = await requireUser();
   const parsed = createDealSchema.safeParse({
     name: formData.get("name"),
     dealCode: formData.get("dealCode") ?? undefined
   });
   if (!parsed.success) {
-    return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
   }
 
   const workspace = await prisma.workspace.create({
@@ -57,24 +57,20 @@ const addMemberSchema = z.object({
   role: z.enum(["owner", "dealteam", "ic"])
 });
 
-export async function addMember(formData: FormData) {
+export async function addMember(formData: FormData): Promise<void> {
   const parsed = addMemberSchema.safeParse({
     workspaceId: formData.get("workspaceId"),
     email: formData.get("email"),
     role: formData.get("role")
   });
-  if (!parsed.success) {
-    return { ok: false as const, error: "Invalid input" };
-  }
+  if (!parsed.success) throw new Error("Invalid input");
 
   const { workspaceId, email, role } = parsed.data;
   const { user, membership } = await requireWorkspaceAccess(workspaceId);
   if (user.role !== "admin" && membership?.role !== "owner" && membership?.role !== "dealteam") {
-    return { ok: false as const, error: "Only the deal team can add members." };
+    throw new Error("Only the deal team can add members.");
   }
 
-  // Users are created on first SSO sign-in. Until then, we create a placeholder
-  // row keyed by email so access is granted the moment they sign in.
   const target = await prisma.user.upsert({
     where: { email: email.toLowerCase() },
     update: {},
@@ -97,5 +93,4 @@ export async function addMember(formData: FormData) {
   });
 
   revalidatePath(`/deals/${workspaceId}`);
-  return { ok: true as const };
 }
