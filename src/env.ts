@@ -32,7 +32,15 @@ const schema = z.object({
   // Use a service-account or admin user's API key so the bot sees all deals.
   // Get one at: Pipedrive → Settings → Personal preferences → API.
   PIPEDRIVE_API_KEY: z.string().optional(),
-  PIPEDRIVE_COMPANY_DOMAIN: z.string().optional()
+  PIPEDRIVE_COMPANY_DOMAIN: z.string().optional(),
+  // Shared secret for Pipedrive webhook requests. Configure in Pipedrive's
+  // webhook setup as HTTP Basic Auth with username "pipedrive" and this as
+  // the password. Request to /api/webhooks/pipedrive is rejected if unset.
+  PIPEDRIVE_WEBHOOK_SECRET: z.string().optional(),
+  // Optional: comma-separated list of Pipedrive stage names that, when a deal
+  // reaches them, should auto-provision a workspace if one doesn't already
+  // exist. Example: "IC Review,Investment Committee".
+  PIPEDRIVE_AUTO_PROVISION_STAGES: z.string().default("")
 });
 
 function parseEnv() {

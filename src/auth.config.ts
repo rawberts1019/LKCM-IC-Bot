@@ -23,11 +23,15 @@ export const authConfig = {
     authorized({ auth, request }) {
       const isLoggedIn = !!auth?.user;
       const { pathname } = request.nextUrl;
-      // /api/upload/handle is called by Vercel's Blob infra as a webhook after
-      // upload completes; it has no browser session but validates its own
-      // body signature via the BLOB_READ_WRITE_TOKEN, so auth-guarding it
-      // breaks the completion handshake.
-      const publicPaths = ["/login", "/api/auth", "/api/upload/handle"];
+      // Webhook-style endpoints called by third parties (Vercel Blob,
+      // Pipedrive). Each validates its own request auth — we must skip the
+      // NextAuth redirect so POST bodies don't get lost.
+      const publicPaths = [
+        "/login",
+        "/api/auth",
+        "/api/upload/handle",
+        "/api/webhooks"
+      ];
       const isPublic = publicPaths.some(
         (p) => pathname === p || pathname.startsWith(`${p}/`)
       );

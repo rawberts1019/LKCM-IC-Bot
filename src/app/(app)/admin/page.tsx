@@ -25,7 +25,7 @@ export default async function AdminHome() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Link
           href="/admin/users"
           className="rounded-lg border border-slate-200 bg-white p-5 hover:border-slate-300"
@@ -45,6 +45,17 @@ export default async function AdminHome() {
         >
           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Audit log</div>
           <div className="mt-1 text-sm text-slate-700">Every Q&amp;A, upload, and admin action.</div>
+        </Link>
+        <Link
+          href="/admin/integrations"
+          className="rounded-lg border border-slate-200 bg-white p-5 hover:border-slate-300"
+        >
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Integrations
+          </div>
+          <div className="mt-1 text-sm text-slate-700">
+            Pipedrive, webhooks, auto-provision config.
+          </div>
         </Link>
       </div>
 
