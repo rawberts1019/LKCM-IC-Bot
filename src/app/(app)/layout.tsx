@@ -20,6 +20,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-6">
             <Wordmark variant="compact" linkTo="/deals" />
             <nav className="flex items-center gap-4 text-sm">
+              <Link href="/dashboard" className="text-slate-700 hover:text-slate-900">
+                Dashboard
+              </Link>
               <Link href="/deals" className="text-slate-700 hover:text-slate-900">
                 Deals
               </Link>
