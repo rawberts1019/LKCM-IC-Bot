@@ -1,6 +1,6 @@
 # AWS setup — CTO one-pager
 
-Run these in parallel with Week 1 development. The longest lead item is **Bedrock model access** (#3) — please do it **day 1**, it can take 1–3 business days in a new account.
+Run these in parallel with Week 1 development. As of April 2026, Bedrock serverless foundation models are **enabled on first invocation** — the old pre-request flow is gone — so the critical path is now the RDS + IAM setup.
 
 Target state: a dedicated AWS account `lkcm-icbot-prod` containing an S3 bucket for raw documents, an RDS Postgres (pgvector) instance for app data, and Bedrock access to Claude. Application code running on Vercel will assume an IAM role via GitHub OIDC — **no long-lived access keys leave AWS**.
 
@@ -17,14 +17,24 @@ Target state: a dedicated AWS account `lkcm-icbot-prod` containing an S3 bucket 
 
 Recommend **`us-east-1`** unless you have a data-residency reason otherwise. Bedrock has the broadest Claude model availability there.
 
-## 3. Request Bedrock model access (do this day 1)
+## 3. Activate Claude on Bedrock (takes ~5 minutes)
+
+The old **Model access** page is retired. Serverless foundation models (including Claude) are enabled account-wide the first time you invoke them. You just need to invoke each Claude model once from the console.
 
 1. Sign in to the new account, switch region to `us-east-1`.
-2. Open the Bedrock console → **Model access** → **Manage model access**.
-3. Request access to: `Anthropic Claude Sonnet 4.6` and `Anthropic Claude Haiku 4.5`.
-4. Fill the use-case form honestly ("internal investment committee assistant for LKCM, a private equity firm; retrieval-augmented Q&A over internal deal documents"). Approval typically lands in a few hours but can take up to 2 business days.
+2. Open the **Bedrock console** → **Model catalog**.
+3. Find **Anthropic Claude Sonnet 4.6** → click it → **Open in playground**.
+4. If prompted, fill in the **use-case details**:
+   - Company: LKCM (Luther King Capital Management)
+   - Industry: Private equity / asset management
+   - Use case: Internal investment-committee assistant. Retrieval-augmented Q&A over firm-uploaded deal documents (IMs, CIMs, QoE, management presentations). Internal employees only; access gated by Microsoft Entra SSO.
+   - Expected volume: low hundreds of requests per day during the prototype.
+5. Send a one-line test message ("hello"). A response confirms the model is enabled account-wide.
+6. Repeat for **Anthropic Claude Haiku 4.5** (used for cheaper extraction tasks).
 
-You'll know it's granted when the models show **Access granted** in the console.
+Confirmation for me: once both models respond in the playground, we're done here. No approval wait.
+
+> If your use-case form gets kicked back ("pending review"), ping me the exact message and I'll help reword it. It's rare with the text above.
 
 ## 4. Create the S3 bucket for raw documents
 
@@ -71,7 +81,7 @@ I'll send the exact JSON trust policy + permissions policy once you tell me the 
 - [ ] AWS account ID
 - [ ] Region confirmation (recommend `us-east-1`)
 - [ ] The S3 bucket name (if not `lkcm-icbot-docs-prod`)
-- [ ] Bedrock model-access confirmation (screenshot or a thumbs-up)
+- [ ] Confirmation that Claude Sonnet 4.6 **and** Claude Haiku 4.5 both respond in the Bedrock playground
 - [ ] `DATABASE_URL` to the RDS instance (added to Vercel env — never checked in)
 - [ ] IAM role ARN for OIDC assumption
 
