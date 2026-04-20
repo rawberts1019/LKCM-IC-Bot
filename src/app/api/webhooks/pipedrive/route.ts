@@ -327,8 +327,13 @@ export async function POST(request: Request): Promise<NextResponse> {
         ? [
             {
               type: "Action.OpenUrl",
-              title: "Open deal in IC Bot",
+              title: "Open deal",
               url: `${base}/deals/${workspace.id}`
+            },
+            {
+              type: "Action.OpenUrl",
+              title: "Start asking",
+              url: `${base}/deals/${workspace.id}/chat#compose`
             }
           ]
         : [],

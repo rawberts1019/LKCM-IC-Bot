@@ -290,6 +290,11 @@ export async function persistChatTurn(options: {
               type: "Action.OpenUrl",
               title: "Open review queue",
               url: `${base}/deals/${workspaceId}/review`
+            },
+            {
+              type: "Action.OpenUrl",
+              title: "View thread",
+              url: `${base}/deals/${workspaceId}/chat?thread=${thread.id}`
             }
           ]
         : [],

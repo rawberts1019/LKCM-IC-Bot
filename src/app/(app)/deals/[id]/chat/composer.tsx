@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Markdown } from "@/components/markdown";
 
@@ -33,6 +33,16 @@ export function Composer({
   const [live, setLive] = useState<{ question: string; answer: string } | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
+
+  // If the URL has #compose (e.g. a Teams card click), scroll to and focus the
+  // textarea on mount so partners land ready to type.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash === "#compose") {
+      taRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      taRef.current?.focus();
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

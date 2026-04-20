@@ -92,8 +92,13 @@ export async function approveAnswer(workspaceId: string, formData: FormData): Pr
       ? [
           {
             type: "Action.OpenUrl",
-            title: "Open thread",
+            title: "Read answer",
             url: `${base}/deals/${workspaceId}/chat?thread=${message.threadId}`
+          },
+          {
+            type: "Action.OpenUrl",
+            title: "Ask a follow-up",
+            url: `${base}/deals/${workspaceId}/chat?thread=${message.threadId}#compose`
           }
         ]
       : [],
@@ -194,6 +199,11 @@ export async function replyOnTop(workspaceId: string, formData: FormData): Promi
             type: "Action.OpenUrl",
             title: "Open thread",
             url: `${base}/deals/${workspaceId}/chat?thread=${message.threadId}`
+          },
+          {
+            type: "Action.OpenUrl",
+            title: "Ask a follow-up",
+            url: `${base}/deals/${workspaceId}/chat?thread=${message.threadId}#compose`
           }
         ]
       : [],
