@@ -12,12 +12,10 @@ declare module "next-auth" {
   }
 }
 
-declare module "next-auth/jwt" {
-  interface JWT {
-    userId?: string;
-    role?: "admin" | "member";
-  }
-}
+type ExtendedToken = {
+  userId?: string;
+  role?: "admin" | "member";
+} & Record<string, unknown>;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -44,21 +42,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user }) {
+      const t = token as ExtendedToken;
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email },
           select: { id: true, role: true }
         });
         if (dbUser) {
-          token.userId = dbUser.id;
-          token.role = dbUser.role;
+          t.userId = dbUser.id;
+          t.role = dbUser.role;
         }
       }
-      return token;
+      return t;
     },
     async session({ session, token }) {
-      if (token.userId) session.user.id = token.userId;
-      if (token.role) session.user.role = token.role;
+      const t = token as ExtendedToken;
+      if (t.userId) session.user.id = t.userId;
+      if (t.role) session.user.role = t.role;
       return session;
     }
   }
