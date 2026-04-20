@@ -40,12 +40,20 @@ export async function GET(request: Request): Promise<NextResponse> {
     take: 10
   });
 
-  const results = local.map((u) => ({
+  type Result = {
+    id: string;
+    displayName: string | null;
+    mail: string | null;
+    jobTitle: string | null;
+    source: "local" | "directory";
+  };
+
+  const results: Result[] = local.map((u) => ({
     id: u.id,
     displayName: u.name,
     mail: u.email,
-    jobTitle: null as string | null,
-    source: "local" as const
+    jobTitle: null,
+    source: "local"
   }));
 
   // Optional: merge in Graph hits if the tenant has granted User.Read.All.
