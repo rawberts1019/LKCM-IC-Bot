@@ -156,11 +156,13 @@ export async function buildChatRequest(options: {
   return { thread, threadExisted, apiMessages };
 }
 
+// Shape compatible with the SDK's Anthropic.Messages.Usage — fields can be
+// number | null | undefined depending on model/endpoint.
 export type TokenUsage = {
-  input_tokens?: number;
-  output_tokens?: number;
-  cache_creation_input_tokens?: number;
-  cache_read_input_tokens?: number;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
 };
 
 /**

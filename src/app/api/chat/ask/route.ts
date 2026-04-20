@@ -75,12 +75,7 @@ export async function POST(request: Request): Promise<Response> {
       let accumulatedJson = "";
       let payload: AnswerPayload | null = null;
       let permanentErrorReason: string | null = null;
-      let usage: {
-        input_tokens?: number;
-        output_tokens?: number;
-        cache_creation_input_tokens?: number;
-        cache_read_input_tokens?: number;
-      } | null = null;
+      let usage: Anthropic.Messages.Usage | null = null;
 
       try {
         const messageStream = anthropic().messages.stream({
