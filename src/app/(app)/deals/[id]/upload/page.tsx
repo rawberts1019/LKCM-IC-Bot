@@ -34,8 +34,9 @@ export default async function UploadPage({ params }: { params: Promise<{ id: str
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Upload files</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Files are stored privately to this deal workspace and read by Claude when IC members ask
-          questions.
+          Drop files in, click to pick, or use <em>Choose folder</em> to ingest an entire OneDrive-
+          synced data-room folder in one shot. Files are stored privately to this deal workspace
+          and read by Claude when IC members ask questions.
         </p>
       </div>
 

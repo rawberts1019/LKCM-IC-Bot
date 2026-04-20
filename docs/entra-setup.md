@@ -43,6 +43,16 @@ Verification: the "Status" column should show a green check with **Granted for L
 
 The app merges Graph results with the local list silently if this is granted, and falls through cleanly if it isn't. No code change either way.
 
+### Native OneDrive / SharePoint data-room picker (requires Global Admin consent)
+
+Not wired yet. If you get admin approval, we can add a Microsoft-provided file picker that lets an analyst browse OneDrive or a SharePoint site library and pull files directly into the bot — no local sync needed.
+
+Permissions required:
+- **`Files.Read.All`** (Delegated) — admin consent required
+- **`Sites.Read.All`** (Delegated) — admin consent required  *(only needed for SharePoint site libraries, not personal OneDrive)*
+
+Until that's approved, the in-app **Choose folder** upload is the path — it ingests any OneDrive-synced folder on the analyst's laptop without any Graph permissions.
+
 ## 4. Enforce MFA via Microsoft Authenticator
 
 This is done at the tenant level, not the app level:
