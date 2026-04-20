@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess } from "@/lib/access";
 import { logAudit } from "@/lib/audit";
+import { createNotifications, dealTeamMemberIds } from "@/lib/notifications";
 import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { getObjectBytes } from "@/lib/storage";
@@ -259,6 +260,22 @@ export async function askQuestion(workspaceId: string, formData: FormData): Prom
         status: "pending"
       }
     });
+
+    // Fan out a notification to every deal-team member (excluding the asker
+    // in case they're also on the team).
+    const memberIds = (await dealTeamMemberIds(workspaceId)).filter((id) => id !== user.id);
+    if (memberIds.length > 0) {
+      await createNotifications(
+        memberIds.map((userId) => ({
+          userId,
+          type: "review.new",
+          title: "New question needs review",
+          body: question.slice(0, 140),
+          targetUrl: `/deals/${workspaceId}/review`,
+          workspaceId
+        }))
+      );
+    }
   }
 
   await prisma.thread.update({

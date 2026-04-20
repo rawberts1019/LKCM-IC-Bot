@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { signOut } from "@/auth";
 import { requireUser } from "@/lib/access";
+import { unreadCountForUser } from "@/lib/notifications";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const unread = await unreadCountForUser(user.id);
 
   async function doSignOut() {
     "use server";
@@ -24,6 +26,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <nav className="flex items-center gap-4 text-sm">
               <Link href="/deals" className="text-slate-700 hover:text-slate-900">
                 Deals
+              </Link>
+              <Link
+                href="/notifications"
+                className="relative flex items-center gap-1 text-slate-700 hover:text-slate-900"
+              >
+                Notifications
+                {unread > 0 ? (
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                ) : null}
               </Link>
               {user.role === "admin" ? (
                 <Link href="/admin" className="text-slate-700 hover:text-slate-900">

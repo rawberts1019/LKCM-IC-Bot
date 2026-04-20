@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess, canManageWorkspace } from "@/lib/access";
 import { logAudit } from "@/lib/audit";
+import { createNotification } from "@/lib/notifications";
 
 const approveSchema = z.object({
   messageId: z.string().min(1),
@@ -25,7 +26,10 @@ export async function approveAnswer(workspaceId: string, formData: FormData): Pr
 
   const message = await prisma.message.findFirst({
     where: { id: parsed.data.messageId, thread: { workspaceId } },
-    include: { reviewItem: true }
+    include: {
+      reviewItem: true,
+      thread: { select: { createdById: true, title: true } }
+    }
   });
   if (!message) throw new Error("Message not found");
   if (message.status !== "queued") throw new Error("Message is not pending review.");
@@ -45,6 +49,19 @@ export async function approveAnswer(workspaceId: string, formData: FormData): Pr
       });
     }
   });
+
+  // Notify the asker (unless they're resolving their own queued message, which
+  // shouldn't happen in practice but handle gracefully).
+  if (message.thread.createdById !== user.id) {
+    await createNotification({
+      userId: message.thread.createdById,
+      type: "answer.ready",
+      title: parsed.data.editedContent ? "Your question was answered (edited by deal team)" : "Your question was answered",
+      body: message.thread.title ?? undefined,
+      targetUrl: `/deals/${workspaceId}/chat?thread=${message.threadId}`,
+      workspaceId
+    });
+  }
 
   await logAudit({
     actorId: user.id,
@@ -109,6 +126,17 @@ export async function replyOnTop(workspaceId: string, formData: FormData): Promi
       data: { updatedAt: new Date() }
     });
   });
+
+  if (message.thread.createdById !== user.id) {
+    await createNotification({
+      userId: message.thread.createdById,
+      type: "answer.reply",
+      title: "Deal team replied to your question",
+      body: message.thread.title ?? undefined,
+      targetUrl: `/deals/${workspaceId}/chat?thread=${message.threadId}`,
+      workspaceId
+    });
+  }
 
   await logAudit({
     actorId: user.id,

@@ -75,6 +75,7 @@ model User {
   messages          Message[]
   auditLogs         AuditLog[]
   reviewAssignments ReviewQueueItem[] @relation("ReviewAssignee")
+  notifications     Notification[]
 }
 
 model Workspace {
@@ -93,6 +94,7 @@ model Workspace {
   chunks       DocumentChunk[]
   reviewQueue  ReviewQueueItem[]
   auditLogs    AuditLog[]
+  notifications Notification[]
 }
 
 model WorkspaceMember {
@@ -201,6 +203,25 @@ model ReviewQueueItem {
   createdAt    DateTime     @default(now())
 
   @@index([workspaceId, status])
+}
+
+// In-app notifications. Readable only by the owning user.
+model Notification {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // e.g. "answer.ready", "answer.reply", "review.new"
+  type         String
+  title        String
+  body         String?
+  // where clicking the notification should take the user
+  targetUrl    String
+  workspaceId  String?
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
 }
 
 // Append-only. Never updated, never deleted. Admin-readable.
