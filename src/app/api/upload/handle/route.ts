@@ -16,14 +16,17 @@ import { logAudit } from "@/lib/audit";
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const body = (await request.json()) as HandleUploadBody;
-  const session = await auth();
-  const userId = session?.user?.id;
 
   try {
     const jsonResponse = await handleUpload({
       body,
       request,
       onBeforeGenerateToken: async (pathname, clientPayloadString) => {
+        // Only the pre-upload call has a browser session; the completion
+        // webhook from Vercel infra does not. We verify identity here and
+        // stash it in tokenPayload for onUploadCompleted to trust.
+        const session = await auth();
+        const userId = session?.user?.id;
         if (!userId) throw new Error("Not signed in.");
         const payload = JSON.parse(clientPayloadString ?? "{}") as {
           workspaceId?: string;
