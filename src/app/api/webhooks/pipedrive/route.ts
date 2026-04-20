@@ -207,6 +207,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   if (existing) {
+    // Status transitions (Pipedrive status: open | won | lost | deleted):
+    //   - open + currently archived   → un-archive (someone reopened the deal)
+    //   - won/lost + currently active → auto-archive (deal closed)
+    let newStatus: "active" | "archived" | undefined;
+    if (deal.status === "open" && existing.status === "archived") {
+      newStatus = "active";
+    } else if (
+      (deal.status === "won" || deal.status === "lost") &&
+      existing.status === "active"
+    ) {
+      newStatus = "archived";
+    }
+
     await prisma.workspace.update({
       where: { id: existing.id },
       data: {
@@ -217,23 +230,31 @@ export async function POST(request: Request): Promise<NextResponse> {
           typeof deal.value === "number" ? BigInt(Math.round(deal.value * 100)) : null,
         currency: deal.currency,
         pipedriveMeta: meta ? (meta as unknown as object) : undefined,
-        ...(deal.status === "open" && existing.status === "archived"
-          ? { status: "active" as const }
-          : {})
+        ...(newStatus ? { status: newStatus } : {})
       }
     });
     await tryLog({
-      action: "pipedrive.webhook.sync",
+      action:
+        newStatus === "archived"
+          ? "pipedrive.webhook.auto-archived"
+          : newStatus === "active"
+            ? "pipedrive.webhook.unarchived"
+            : "pipedrive.webhook.sync",
       workspaceId: existing.id,
       actorId: existing.createdById,
       metadata: {
         pipedriveDealId: dealId,
         action,
         newStage: deal.stageName,
+        pipedriveStatus: deal.status,
         version: body.meta?.version ?? "v1"
       }
     });
-    return NextResponse.json({ ok: true, action: "updated", workspaceId: existing.id });
+    return NextResponse.json({
+      ok: true,
+      action: newStatus ?? "updated",
+      workspaceId: existing.id
+    });
   }
 
   // No workspace yet — auto-provision iff deal is in a configured stage.
