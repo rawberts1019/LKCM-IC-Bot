@@ -1,11 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand: #0f172a;
-  --color-brand-accent: #1e3a8a;
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, "Noto Sans", sans-serif;
+  /* LKCM Headwater palette */
+  --color-brand: #15366f;          /* navy used in LKCM + INVESTMENTS */
+  --color-brand-accent: #3b7bc3;   /* medium royal blue of the wave */
+  --color-brand-ink: #0f172a;      /* near-black body text */
+  --color-brand-paper: #f7f8fa;    /* page background */
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: var(--font-display), "DM Serif Display", Georgia, "Times New Roman", serif;
 }
 
 html,
@@ -14,7 +18,7 @@ body {
 }
 
 body {
-  background: #fafafa;
-  color: #0f172a;
+  background: var(--color-brand-paper);
+  color: var(--color-brand-ink);
   font-family: var(--font-sans);
 }

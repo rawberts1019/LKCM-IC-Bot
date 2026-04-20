@@ -2,6 +2,7 @@ import Link from "next/link";
 import { signOut } from "@/auth";
 import { requireUser } from "@/lib/access";
 import { unreadCountForUser } from "@/lib/notifications";
+import { Wordmark } from "@/components/wordmark";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -17,12 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
           <div className="flex items-center gap-6">
-            <Link href="/deals" className="flex items-baseline gap-2">
-              <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                LKCM
-              </span>
-              <span className="text-sm font-semibold text-slate-900">IC Bot</span>
-            </Link>
+            <Wordmark variant="compact" linkTo="/deals" />
             <nav className="flex items-center gap-4 text-sm">
               <Link href="/deals" className="text-slate-700 hover:text-slate-900">
                 Deals
