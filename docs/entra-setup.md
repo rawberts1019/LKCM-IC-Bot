@@ -29,6 +29,18 @@ Then **Certificates & secrets → New client secret**, copy the value (not the I
 2. Add: `openid`, `profile`, `email`, `offline_access`, `User.Read`.
 3. Click **Grant admin consent for LKCM**.
 
+### Directory autocomplete (for Add-member UI — optional but recommended)
+
+Adds live "type a name, see LKCM employees" search when adding deal members. Uses an **application** permission (app calls Graph on its own, not as the signed-in user) so it works without per-user token refresh.
+
+1. **API permissions → Add a permission → Microsoft Graph → Application permissions**.
+2. Add: `User.Read.All`.
+3. Click **Grant admin consent for LKCM**.
+
+Verification: the "Status" column should show a green check with **Granted for LKCM**. If it doesn't show up after consent, refresh the page.
+
+If you skip this step, the member-add form still works — you just type an email manually and the row won't pick up the person's name until they sign in.
+
 ## 4. Enforce MFA via Microsoft Authenticator
 
 This is done at the tenant level, not the app level:

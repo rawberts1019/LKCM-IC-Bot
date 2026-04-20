@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser, requireWorkspaceAccess } from "@/lib/access";
 import { logAudit } from "@/lib/audit";
+import { searchDirectory } from "@/lib/graph";
 
 const createDealSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -71,10 +72,36 @@ export async function addMember(formData: FormData): Promise<void> {
     throw new Error("Only the deal team can add members.");
   }
 
+  // Best-effort directory lookup so the placeholder row shows a name and
+  // entraOid immediately, rather than waiting for the user's first sign-in.
+  // Silently falls through if Graph is unavailable or the email isn't found.
+  let directoryName: string | undefined;
+  let directoryOid: string | undefined;
+  try {
+    const hits = await searchDirectory(email, 1);
+    const match = hits.find(
+      (h) => (h.mail ?? "").toLowerCase() === email.toLowerCase()
+    );
+    if (match) {
+      directoryName = match.displayName ?? undefined;
+      directoryOid = match.id;
+    }
+  } catch {
+    // ignore — directory lookup is non-critical
+  }
+
   const target = await prisma.user.upsert({
     where: { email: email.toLowerCase() },
-    update: {},
-    create: { email: email.toLowerCase(), role: "member" }
+    update: {
+      ...(directoryName ? { name: directoryName } : {}),
+      ...(directoryOid ? { entraOid: directoryOid } : {})
+    },
+    create: {
+      email: email.toLowerCase(),
+      name: directoryName,
+      entraOid: directoryOid,
+      role: "member"
+    }
   });
 
   await prisma.workspaceMember.upsert({

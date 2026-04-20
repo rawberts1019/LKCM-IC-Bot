@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
-import { addMember } from "../actions";
+import { MemberAddForm } from "./member-add-form";
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -140,48 +140,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           ))}
         </ul>
 
-        {canManage ? (
-          <form
-            action={addMember}
-            className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-4"
-          >
-            <input type="hidden" name="workspaceId" value={id} />
-            <div className="flex-1">
-              <label htmlFor="email" className="block text-xs font-medium text-slate-700">
-                Add member by email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                placeholder="name@lkcm.com"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-              />
-            </div>
-            <div>
-              <label htmlFor="role" className="block text-xs font-medium text-slate-700">
-                Role
-              </label>
-              <select
-                id="role"
-                name="role"
-                defaultValue="ic"
-                className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="ic">IC (read/ask)</option>
-                <option value="dealteam">Deal team</option>
-                <option value="owner">Owner</option>
-              </select>
-            </div>
-            <button
-              type="submit"
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              Add
-            </button>
-          </form>
-        ) : null}
+        {canManage ? <MemberAddForm workspaceId={id} /> : null}
       </section>
     </div>
   );
