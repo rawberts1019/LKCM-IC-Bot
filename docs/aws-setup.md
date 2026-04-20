@@ -36,58 +36,36 @@ Confirmation for me: once both models respond in the playground, we're done here
 
 > If your use-case form gets kicked back ("pending review"), ping me the exact message and I'll help reword it. It's rare with the text above.
 
-## 4. Create the S3 bucket for raw documents
+## 4. S3 + KMS + RDS + IAM
 
-- Bucket name: `lkcm-icbot-docs-prod` (bucket names are global; adjust if taken).
-- Region: `us-east-1`.
-- **Block all public access**: on.
-- **Default encryption**: SSE-KMS with a CMK named `lkcm-icbot-docs`. Create the CMK if needed.
-- **Versioning**: enabled (recoverability for accidental deletes; also supports WORM later).
-- **Object ownership**: bucket owner enforced (disable ACLs).
-- Add a lifecycle rule to transition non-current versions to Glacier Deep Archive after 90 days (cost control on document revisions).
+The detailed CLI runbook with account-id-filled JSON is in [`../infra/aws/README.md`](../infra/aws/README.md). It covers:
 
-## 5. Create the RDS Postgres instance
+- KMS CMKs for docs (`alias/lkcm-icbot-docs`) and database (`alias/lkcm-icbot-db`)
+- S3 bucket `lkcm-icbot-docs-prod` (block public access, SSE-KMS, versioning, ownership enforced, lifecycle to Glacier Deep Archive after 90 days)
+- RDS Postgres 16 + `vector` extension
+- Two options for runtime credentials:
+  - **Path A (recommended):** Vercel OIDC → role `arn:aws:iam::416689419695:role/lkcm-icbot-app`. Trust policy and permissions policy JSONs are in `infra/aws/iam/`, pre-filled with this account ID.
+  - **Path B (fallback):** scoped IAM user `lkcm-icbot-app` with keys stored in Vercel env.
 
-- Engine: **Postgres 16**.
-- Instance: `db.t4g.small` (upgradeable; fine for the prototype).
-- Storage: 20 GB gp3, encrypted with a CMK `lkcm-icbot-db`.
-- VPC: default VPC for the prototype; move to a private VPC before go-live.
-- Public access: **off**. We'll reach it via Vercel's IP allow-list or (preferably) an RDS Proxy + AWS Private Link once we move the app into AWS.
-- Database name: `lkcm_icbot`.
-- After creation: connect once and run `CREATE EXTENSION vector;`. The first migration file does this too, but the extension must be installable — confirm `shared_preload_libraries` includes `vector` on the parameter group (default is fine on Postgres 16 RDS).
+Permissions policy grants:
+- `bedrock:InvokeModel` / `Converse` on Claude Sonnet 4.6 + Haiku 4.5 only
+- `s3:GetObject` / `PutObject` / `DeleteObject` / `ListBucket` scoped to `lkcm-icbot-docs-prod`
+- `kms:Decrypt` / `GenerateDataKey` only when invoked via S3
+- `logs:*` under `/lkcm-icbot/*`
 
-Save the connection string as `DATABASE_URL` in Vercel's project env (encrypted).
+## 5. What I need from you before cutover
 
-## 6. Create the IAM role for GitHub / Vercel (OIDC)
+- [x] AWS account ID — **416689419695**
+- [x] Region — **us-east-1**
+- [x] Bedrock Claude Sonnet 4.6 + Haiku 4.5 confirmed working in the playground
+- [ ] S3 bucket created (confirm name if not `lkcm-icbot-docs-prod`)
+- [ ] RDS endpoint hostname (password stays on your side; `DATABASE_URL` goes into Vercel env)
+- [ ] IAM role ARN — should be `arn:aws:iam::416689419695:role/lkcm-icbot-app`
+- [ ] Vercel team slug (needed to fill `__TEAM_SLUG__` in `infra/aws/iam/trust-policy-vercel-oidc.json`)
 
-Do **not** create long-lived access keys. Instead:
+Once I have the remaining four, cutover takes ~1 day. Real deal documents stay out of Vercel Blob / Anthropic direct API until cutover is complete.
 
-1. IAM → **Identity providers** → **Add provider** → OIDC.
-   - Provider URL: `https://token.actions.githubusercontent.com` (for GitHub Actions) and/or `https://oidc.vercel.com` (for Vercel).
-   - Audience: `sts.amazonaws.com`.
-2. IAM → **Roles** → **Create role** → Web identity.
-   - Trusted entity: the OIDC provider from step 1.
-   - Trust policy limits the role to the `rawberts1019/lkcm-ic-bot` repo and `claude/*` branches.
-3. Attach a **least-privilege policy** (inline) allowing:
-   - `s3:GetObject`, `s3:PutObject`, `s3:ListBucket` on `arn:aws:s3:::lkcm-icbot-docs-prod/*`
-   - `kms:Decrypt`, `kms:GenerateDataKey` on the two CMKs above
-   - `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` on the two Claude model ARNs
-   - `logs:*` on `arn:aws:logs:*:*:log-group:/lkcm-icbot/*`
-
-I'll send the exact JSON trust policy + permissions policy once you tell me the AWS account ID.
-
-## 7. What I need from you before cutover
-
-- [ ] AWS account ID
-- [ ] Region confirmation (recommend `us-east-1`)
-- [ ] The S3 bucket name (if not `lkcm-icbot-docs-prod`)
-- [ ] Confirmation that Claude Sonnet 4.6 **and** Claude Haiku 4.5 both respond in the Bedrock playground
-- [ ] `DATABASE_URL` to the RDS instance (added to Vercel env — never checked in)
-- [ ] IAM role ARN for OIDC assumption
-
-Once I have those six, cutover takes ~1 day. Real deal documents stay out of Vercel Blob / Anthropic direct API until cutover is complete.
-
-## 8. Not in scope for the prototype (track for pilot)
+## 6. Not in scope for the prototype (track for pilot)
 
 - AWS Organizations + SCPs
 - CloudTrail org trail → S3 → Athena for cross-account audit

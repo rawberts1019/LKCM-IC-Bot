@@ -1,0 +1,21 @@
+{
+  "Rules": [
+    {
+      "ID": "ArchiveNoncurrentVersionsAfter90Days",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "" },
+      "NoncurrentVersionTransitions": [
+        {
+          "NoncurrentDays": 90,
+          "StorageClass": "DEEP_ARCHIVE"
+        }
+      ],
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 2555
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    }
+  ]
+}

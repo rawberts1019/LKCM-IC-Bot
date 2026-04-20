@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VercelOidcAssume",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::416689419695:oidc-provider/oidc.vercel.com/__TEAM_SLUG__"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.vercel.com/__TEAM_SLUG__:aud": "https://vercel.com/__TEAM_SLUG__"
+        },
+        "StringLike": {
+          "oidc.vercel.com/__TEAM_SLUG__:sub": "owner:__TEAM_SLUG__:project:lkcm-ic-bot:environment:*"
+        }
+      }
+    }
+  ]
+}
