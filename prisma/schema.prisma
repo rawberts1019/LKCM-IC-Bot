@@ -59,6 +59,18 @@ enum ReviewStatus {
   resolved
 }
 
+enum RiskSeverity {
+  high
+  medium
+  low
+}
+
+enum RiskStatus {
+  open
+  mitigated
+  accepted
+}
+
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
@@ -76,6 +88,7 @@ model User {
   auditLogs         AuditLog[]
   reviewAssignments ReviewQueueItem[] @relation("ReviewAssignee")
   notifications     Notification[]
+  createdRisks      Risk[]
 }
 
 model Workspace {
@@ -110,6 +123,7 @@ model Workspace {
   reviewQueue  ReviewQueueItem[]
   auditLogs    AuditLog[]
   notifications Notification[]
+  risks        Risk[]
 }
 
 model WorkspaceMember {
@@ -203,6 +217,7 @@ model Message {
 
   reviewItem     ReviewQueueItem?
   feedback       MessageFeedback[]
+  risksExtracted Risk[]           @relation("RiskSourceMessage")
 
   @@index([threadId, createdAt])
   @@index([pinnedAt])
@@ -237,6 +252,29 @@ model ReviewQueueItem {
   createdAt    DateTime     @default(now())
 
   @@index([workspaceId, status])
+}
+
+// Curated list of risks flagged on a deal. Extracted from documents by the
+// bot (sourceMessageId populated) or added manually. Status lifecycle:
+//   open → mitigated OR accepted.
+model Risk {
+  id              String       @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title           String
+  description     String       @db.Text
+  severity        RiskSeverity @default(medium)
+  status          RiskStatus   @default(open)
+  sourceMessageId String?
+  sourceMessage   Message?     @relation("RiskSourceMessage", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  mitigationNote  String?      @db.Text
+  createdById     String
+  createdBy       User         @relation(fields: [createdById], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, severity])
 }
 
 // In-app notifications. Readable only by the owning user.

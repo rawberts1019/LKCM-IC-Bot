@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/utils";
 import { Markdown } from "@/components/markdown";
 import { MemberAddForm } from "./member-add-form";
 import { PipedriveContext, type PipedriveMeta } from "./pipedrive-context";
+import { RiskRegister, type RiskRow } from "./risk-register";
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -31,19 +32,41 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const canManage = user.role === "admin" || membership?.role === "owner" || membership?.role === "dealteam";
   const pendingReviews = workspace.reviewQueue.length;
 
-  const pinnedAnswers = await prisma.message.findMany({
-    where: {
-      thread: { workspaceId: id },
-      pinnedAt: { not: null },
-      role: { not: "user" },
-      status: { not: "superseded" }
-    },
-    orderBy: { pinnedAt: "desc" },
-    take: 10,
-    include: {
-      thread: { select: { id: true, title: true } }
-    }
-  });
+  const [pinnedAnswers, risks] = await Promise.all([
+    prisma.message.findMany({
+      where: {
+        thread: { workspaceId: id },
+        pinnedAt: { not: null },
+        role: { not: "user" },
+        status: { not: "superseded" }
+      },
+      orderBy: { pinnedAt: "desc" },
+      take: 10,
+      include: {
+        thread: { select: { id: true, title: true } }
+      }
+    }),
+    prisma.risk.findMany({
+      where: { workspaceId: id },
+      orderBy: [
+        { status: "asc" },
+        { severity: "asc" },
+        { createdAt: "desc" }
+      ],
+      include: { createdBy: { select: { name: true, email: true } } }
+    })
+  ]);
+
+  const riskRows: RiskRow[] = risks.map((r) => ({
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    severity: r.severity,
+    status: r.status,
+    createdAt: r.createdAt.toISOString(),
+    sourceMessageId: r.sourceMessageId,
+    createdBy: { name: r.createdBy.name, email: r.createdBy.email }
+  }));
 
   return (
     <div className="space-y-8">
@@ -111,6 +134,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           accent={pendingReviews > 0}
         />
       </div>
+
+      <RiskRegister workspaceId={id} risks={riskRows} canManage={canManage} />
 
       {pinnedAnswers.length > 0 ? (
         <section>
