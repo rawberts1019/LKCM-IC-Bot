@@ -5,6 +5,7 @@ import { requireWorkspaceAccess } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
 import { Markdown } from "@/components/markdown";
 import { MemberAddForm } from "./member-add-form";
+import { PipedriveContext, type PipedriveMeta } from "./pipedrive-context";
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -91,6 +92,13 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       </div>
+
+      {workspace.pipedriveMeta ? (
+        <PipedriveContext
+          workspaceId={id}
+          meta={workspace.pipedriveMeta as unknown as PipedriveMeta}
+        />
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Stat label="Documents" value={workspace._count.documents} />

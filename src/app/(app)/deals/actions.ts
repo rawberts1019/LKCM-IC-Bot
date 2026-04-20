@@ -7,7 +7,11 @@ import { prisma } from "@/lib/db";
 import { requireUser, requireWorkspaceAccess } from "@/lib/access";
 import { logAudit } from "@/lib/audit";
 import { searchDirectory } from "@/lib/graph";
-import { getDeal as getPipedriveDeal, dealUrl } from "@/lib/pipedrive";
+import {
+  getDeal as getPipedriveDeal,
+  getDealMetadata,
+  dealUrl
+} from "@/lib/pipedrive";
 
 const createDealSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -82,7 +86,10 @@ export async function importFromPipedrive(formData: FormData): Promise<void> {
     redirect(`/deals/${existing.id}`);
   }
 
-  const deal = await getPipedriveDeal(parsed.data.pipedriveDealId);
+  const [deal, meta] = await Promise.all([
+    getPipedriveDeal(parsed.data.pipedriveDealId),
+    getDealMetadata(parsed.data.pipedriveDealId).catch(() => null)
+  ]);
   if (!deal) throw new Error("Pipedrive deal not found.");
 
   const url = dealUrl(deal.id);
@@ -97,6 +104,7 @@ export async function importFromPipedrive(formData: FormData): Promise<void> {
       currency: deal.currency,
       pipedriveDealId: deal.id,
       pipedriveUrl: url,
+      pipedriveMeta: meta ? (meta as unknown as object) : undefined,
       createdById: user.id,
       members: { create: { userId: user.id, role: "owner" } }
     }
@@ -209,6 +217,53 @@ export async function addMember(formData: FormData): Promise<void> {
     targetId: workspaceId,
     workspaceId,
     metadata: { addedEmail: target.email, role }
+  });
+
+  revalidatePath(`/deals/${workspaceId}`);
+}
+
+/**
+ * Refresh the cached Pipedrive metadata for a deal. Updates top-level fields
+ * (orgName, stageName, value, currency) and the flexible pipedriveMeta JSON.
+ * Anyone with workspace access can refresh.
+ */
+export async function refreshPipedrive(workspaceId: string): Promise<void> {
+  const { user } = await requireWorkspaceAccess(workspaceId);
+
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { pipedriveDealId: true }
+  });
+  if (!workspace?.pipedriveDealId) {
+    throw new Error("This deal isn't linked to Pipedrive.");
+  }
+
+  const [deal, meta] = await Promise.all([
+    getPipedriveDeal(workspace.pipedriveDealId),
+    getDealMetadata(workspace.pipedriveDealId).catch(() => null)
+  ]);
+  if (!deal) throw new Error("Pipedrive deal not found. It may have been deleted.");
+
+  await prisma.workspace.update({
+    where: { id: workspaceId },
+    data: {
+      name: deal.title,
+      orgName: deal.orgName,
+      stageName: deal.stageName,
+      valueCents:
+        typeof deal.value === "number" ? BigInt(Math.round(deal.value * 100)) : null,
+      currency: deal.currency,
+      pipedriveMeta: meta ? (meta as unknown as object) : undefined
+    }
+  });
+
+  await logAudit({
+    actorId: user.id,
+    action: "workspace.pipedrive.refresh",
+    targetType: "workspace",
+    targetId: workspaceId,
+    workspaceId,
+    metadata: { pipedriveDealId: workspace.pipedriveDealId }
   });
 
   revalidatePath(`/deals/${workspaceId}`);

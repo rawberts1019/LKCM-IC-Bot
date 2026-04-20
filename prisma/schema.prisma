@@ -93,6 +93,11 @@ model Workspace {
   // auto-updates to the right workspace.
   pipedriveDealId Int?         @unique
   pipedriveUrl    String?
+  // Flexible store of Pipedrive metadata rendered on the deal page:
+  // owner, banker, industry, expected close, custom fields, etc.
+  // Shape: { value, currency, expectedCloseDate, probability, dealLabel,
+  //          owner, person, organization, dealCustomFields, lastSyncedAt }
+  pipedriveMeta   Json?
   createdById  String
   createdBy    User            @relation("WorkspaceCreatedBy", fields: [createdById], references: [id])
   createdAt    DateTime        @default(now())
