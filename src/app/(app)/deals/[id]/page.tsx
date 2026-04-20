@@ -1,0 +1,222 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/db";
+import { requireWorkspaceAccess } from "@/lib/access";
+import { formatDateTime } from "@/lib/utils";
+import { addMember } from "../actions";
+
+export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const { user, membership } = await requireWorkspaceAccess(id);
+
+  const workspace = await prisma.workspace.findUnique({
+    where: { id },
+    include: {
+      members: { include: { user: true }, orderBy: { createdAt: "asc" } },
+      documents: { orderBy: { createdAt: "desc" }, take: 5 },
+      threads: {
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+        include: { createdBy: { select: { email: true, name: true } } }
+      },
+      reviewQueue: { where: { status: "pending" } },
+      _count: { select: { documents: true, threads: true, reviewQueue: true } }
+    }
+  });
+
+  if (!workspace) notFound();
+
+  const canManage = user.role === "admin" || membership?.role === "owner" || membership?.role === "dealteam";
+  const pendingReviews = workspace.reviewQueue.length;
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <Link href="/deals" className="text-sm text-slate-500 hover:text-slate-700">
+          &larr; All deals
+        </Link>
+        <div className="mt-2 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">{workspace.name}</h1>
+            {workspace.dealCode ? (
+              <div className="text-sm text-slate-500">{workspace.dealCode}</div>
+            ) : null}
+          </div>
+          <div className="flex gap-2">
+            <Link
+              href={`/deals/${id}/chat`}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Ask a question
+            </Link>
+            {canManage ? (
+              <Link
+                href={`/deals/${id}/upload`}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+              >
+                Upload files
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <Stat label="Documents" value={workspace._count.documents} />
+        <Stat label="Threads" value={workspace._count.threads} />
+        <Stat label="Members" value={workspace.members.length} />
+        <Stat
+          label="Pending review"
+          value={pendingReviews}
+          href={canManage && pendingReviews > 0 ? `/deals/${id}/review` : undefined}
+          accent={pendingReviews > 0}
+        />
+      </div>
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Recent documents
+        </h2>
+        {workspace.documents.length === 0 ? (
+          <EmptyCard message="No documents uploaded yet." />
+        ) : (
+          <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+            {workspace.documents.map((d) => (
+              <li key={d.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                <div>
+                  <div className="font-medium text-slate-900">{d.filename}</div>
+                  <div className="text-xs text-slate-500">
+                    {d.status} · {formatDateTime(d.createdAt)}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Recent threads
+        </h2>
+        {workspace.threads.length === 0 ? (
+          <EmptyCard message="No threads yet. Ask a question to start one." />
+        ) : (
+          <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+            {workspace.threads.map((t) => (
+              <li key={t.id}>
+                <Link
+                  href={`/deals/${id}/chat?thread=${t.id}`}
+                  className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50"
+                >
+                  <div>
+                    <div className="font-medium text-slate-900">{t.title ?? "Untitled thread"}</div>
+                    <div className="text-xs text-slate-500">
+                      {t.createdBy.name ?? t.createdBy.email} · {formatDateTime(t.updatedAt)}
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Members
+        </h2>
+        <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+          {workspace.members.map((m) => (
+            <li key={m.id} className="flex items-center justify-between px-4 py-3 text-sm">
+              <div>
+                <div className="font-medium text-slate-900">{m.user.name ?? m.user.email}</div>
+                <div className="text-xs text-slate-500">{m.user.email}</div>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                {m.role}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        {canManage ? (
+          <form
+            action={addMember}
+            className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-4"
+          >
+            <input type="hidden" name="workspaceId" value={id} />
+            <div className="flex-1">
+              <label htmlFor="email" className="block text-xs font-medium text-slate-700">
+                Add member by email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                placeholder="name@lkcm.com"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              />
+            </div>
+            <div>
+              <label htmlFor="role" className="block text-xs font-medium text-slate-700">
+                Role
+              </label>
+              <select
+                id="role"
+                name="role"
+                defaultValue="ic"
+                className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="ic">IC (read/ask)</option>
+                <option value="dealteam">Deal team</option>
+                <option value="owner">Owner</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Add
+            </button>
+          </form>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  href,
+  accent
+}: {
+  label: string;
+  value: number;
+  href?: string;
+  accent?: boolean;
+}) {
+  const body = (
+    <div
+      className={`rounded-lg border bg-white p-4 ${
+        accent ? "border-amber-300" : "border-slate-200"
+      }`}
+    >
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={`mt-1 text-2xl font-semibold ${accent ? "text-amber-700" : "text-slate-900"}`}>
+        {value}
+      </div>
+    </div>
+  );
+  return href ? <Link href={href}>{body}</Link> : body;
+}
+
+function EmptyCard({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
+      {message}
+    </div>
+  );
+}

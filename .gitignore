@@ -1,0 +1,39 @@
+# deps
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+
+# next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# env
+.env
+.env.local
+.env.*.local
+
+# prisma
+/prisma/migrations/dev.db*
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# editor
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# os
+.DS_Store
+Thumbs.db
+
+# uploads (local dev only — real docs go to S3)
+/tmp-uploads

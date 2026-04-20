@@ -1,0 +1,221 @@
+// LKCM IC Bot — data model
+//
+// Conventions:
+// - Workspace == "deal". Kept workspace-neutral in code because firm-wide precedent
+//   search (phase 2) will let workspaces be tagged as non-deal corpora.
+// - Access is enforced at the WorkspaceMember level. A user must be a member of the
+//   workspace to see any document, thread, or message belonging to it.
+// - Vector column uses pgvector. Migrations must enable the extension first.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+enum UserRole {
+  admin
+  member
+}
+
+enum WorkspaceRole {
+  owner      // deal team lead
+  dealteam   // other deal team members
+  ic         // read/ask only
+}
+
+enum WorkspaceStatus {
+  active
+  archived
+}
+
+enum MessageRole {
+  user
+  assistant
+  dealteam   // deal-team reply-on-top
+}
+
+enum MessageStatus {
+  sent         // delivered to user
+  queued       // waiting for deal-team review
+  superseded   // replaced by a deal-team reply
+}
+
+enum DocumentStatus {
+  uploaded
+  processing
+  ready
+  failed
+}
+
+enum ReviewStatus {
+  pending
+  resolved
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  entraOid      String?  @unique   // Entra object id, set on first SSO login
+  role          UserRole @default(member)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  memberships   WorkspaceMember[]
+  createdWorkspaces Workspace[]    @relation("WorkspaceCreatedBy")
+  uploadedDocuments Document[]
+  createdThreads    Thread[]
+  messages          Message[]
+  auditLogs         AuditLog[]
+  reviewAssignments ReviewQueueItem[] @relation("ReviewAssignee")
+}
+
+model Workspace {
+  id           String          @id @default(cuid())
+  name         String
+  dealCode     String?         @unique
+  status       WorkspaceStatus @default(active)
+  createdById  String
+  createdBy    User            @relation("WorkspaceCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  members      WorkspaceMember[]
+  documents    Document[]
+  threads      Thread[]
+  chunks       DocumentChunk[]
+  reviewQueue  ReviewQueueItem[]
+  auditLogs    AuditLog[]
+}
+
+model WorkspaceMember {
+  id           String        @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         WorkspaceRole
+  createdAt    DateTime      @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Document {
+  id             String         @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploadedById   String
+  uploadedBy     User           @relation(fields: [uploadedById], references: [id])
+  filename       String
+  mimeType       String
+  sizeBytes      Int
+  storageKey     String         // local path OR s3://bucket/key depending on provider
+  status         DocumentStatus @default(uploaded)
+  statusReason   String?
+  ocrApplied     Boolean        @default(false)
+  pageCount      Int?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  chunks         DocumentChunk[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model DocumentChunk {
+  id           String    @id @default(cuid())
+  documentId   String
+  document     Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chunkIndex   Int
+  content      String    @db.Text
+  page         Int?
+  section      String?
+  // 1024-dim matches Voyage; 1536 matches OpenAI; 3072 matches Claude via Voyage-3.
+  // Set to 1024 to start (Voyage / Claude pairing) — adjust once embedding choice is locked.
+  embedding    Unsupported("vector(1024)")?
+  createdAt    DateTime  @default(now())
+
+  @@index([workspaceId])
+  @@index([documentId, chunkIndex])
+}
+
+model Thread {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdById  String
+  createdBy    User      @relation(fields: [createdById], references: [id])
+  title        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  messages     Message[]
+
+  @@index([workspaceId, updatedAt])
+  @@index([createdById])
+}
+
+model Message {
+  id             String         @id @default(cuid())
+  threadId       String
+  thread         Thread         @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  status         MessageStatus  @default(sent)
+  content        String         @db.Text
+  // { sources: [{ documentId, filename, page, snippet }] }
+  citationsJson  Json?
+  // assistant messages only; null otherwise
+  confidence     Float?
+  sensitivityFlagged Boolean    @default(false)
+  createdById    String?
+  createdBy      User?          @relation(fields: [createdById], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  reviewItem     ReviewQueueItem?
+
+  @@index([threadId, createdAt])
+}
+
+model ReviewQueueItem {
+  id           String       @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messageId    String       @unique
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reason       String       // e.g. "low_confidence", "sensitive_flag"
+  status       ReviewStatus @default(pending)
+  assignedToId String?
+  assignedTo   User?        @relation("ReviewAssignee", fields: [assignedToId], references: [id])
+  resolvedAt   DateTime?
+  createdAt    DateTime     @default(now())
+
+  @@index([workspaceId, status])
+}
+
+// Append-only. Never updated, never deleted. Admin-readable.
+model AuditLog {
+  id           String    @id @default(cuid())
+  actorId      String?
+  actor        User?     @relation(fields: [actorId], references: [id])
+  action       String    // e.g. "workspace.create", "document.upload", "message.ask", "message.answer", "review.resolve"
+  targetType   String?   // e.g. "workspace", "document", "message"
+  targetId     String?
+  workspaceId  String?
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id])
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
