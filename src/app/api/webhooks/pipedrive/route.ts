@@ -3,6 +3,14 @@ import { prisma } from "@/lib/db";
 import { env } from "@/env";
 import { logAudit } from "@/lib/audit";
 import { getDeal as getPipedriveDeal, getDealMetadata, dealUrl } from "@/lib/pipedrive";
+import { postToTeamsSafe } from "@/lib/teams";
+
+function appBaseUrl(): string {
+  if (env.NEXTAUTH_URL) return env.NEXTAUTH_URL;
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (vercel) return `https://${vercel}`;
+  return "";
+}
 
 export const runtime = "nodejs";
 
@@ -306,6 +314,25 @@ export async function POST(request: Request): Promise<NextResponse> {
       workspaceId: workspace.id,
       actorId: creatorId,
       metadata: { pipedriveDealId: dealId, matchedStage: deal.stageName }
+    });
+    const base = appBaseUrl();
+    await postToTeamsSafe(workspace.id, {
+      title: `New deal ready for review — ${deal.title}`,
+      subtitle: deal.orgName ?? undefined,
+      facts: [
+        { title: "Stage", value: deal.stageName ?? "—" },
+        { title: "Owner", value: deal.ownerName ?? deal.ownerEmail ?? "—" }
+      ],
+      actions: base
+        ? [
+            {
+              type: "Action.OpenUrl",
+              title: "Open deal in IC Bot",
+              url: `${base}/deals/${workspace.id}`
+            }
+          ]
+        : [],
+      accent: "good"
     });
     return NextResponse.json({
       ok: true,

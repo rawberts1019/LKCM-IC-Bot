@@ -40,7 +40,13 @@ const schema = z.object({
   // Optional: comma-separated list of Pipedrive stage names that, when a deal
   // reaches them, should auto-provision a workspace if one doesn't already
   // exist. Example: "IC Review,Investment Committee".
-  PIPEDRIVE_AUTO_PROVISION_STAGES: z.string().default("")
+  PIPEDRIVE_AUTO_PROVISION_STAGES: z.string().default(""),
+
+  // Microsoft Teams incoming webhook URL. If set, events (new review items,
+  // answer-ready, auto-provision) post to this channel unless a deal has
+  // its own teamsWebhookUrl override. Set up in Teams: channel → Manage
+  // channel → Connectors → Incoming Webhook.
+  TEAMS_DEFAULT_WEBHOOK_URL: z.string().url().optional()
 });
 
 function parseEnv() {

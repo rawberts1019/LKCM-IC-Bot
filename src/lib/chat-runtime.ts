@@ -4,8 +4,16 @@ import { getObjectBytes } from "./storage";
 import { MIME_PDF } from "./extraction";
 import { logAudit } from "./audit";
 import { createNotifications, dealTeamMemberIds } from "./notifications";
+import { postToTeamsSafe } from "./teams";
 import { anthropic } from "./anthropic";
 import { env } from "@/env";
+
+function appBaseUrl(): string {
+  if (env.NEXTAUTH_URL) return env.NEXTAUTH_URL;
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (vercel) return `https://${vercel}`;
+  return "";
+}
 
 export const SYSTEM_PROMPT = `You are the LKCM Investment Committee assistant. You answer questions about a specific deal using ONLY the documents provided to you in this conversation.
 
@@ -259,6 +267,34 @@ export async function persistChatTurn(options: {
         }))
       );
     }
+
+    const ws = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { name: true, dealCode: true }
+    });
+    const base = appBaseUrl();
+    await postToTeamsSafe(workspaceId, {
+      title: `New question needs review — ${ws?.name ?? "deal"}`,
+      subtitle: ws?.dealCode ?? undefined,
+      facts: [
+        { title: "Reason", value: reason.replace(/_/g, " ") },
+        {
+          title: "Confidence",
+          value: payload ? `${Math.round(payload.confidence * 100)}%` : "—"
+        }
+      ],
+      body: question.slice(0, 600),
+      actions: base
+        ? [
+            {
+              type: "Action.OpenUrl",
+              title: "Open review queue",
+              url: `${base}/deals/${workspaceId}/review`
+            }
+          ]
+        : [],
+      accent: "warning"
+    });
   }
 
   await prisma.thread.update({

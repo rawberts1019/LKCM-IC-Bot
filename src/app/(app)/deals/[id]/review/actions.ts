@@ -6,6 +6,15 @@ import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess, canManageWorkspace } from "@/lib/access";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
+import { postToTeamsSafe } from "@/lib/teams";
+import { env } from "@/env";
+
+function appBaseUrl(): string {
+  if (env.NEXTAUTH_URL) return env.NEXTAUTH_URL;
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (vercel) return `https://${vercel}`;
+  return "";
+}
 
 const approveSchema = z.object({
   messageId: z.string().min(1),
@@ -62,6 +71,34 @@ export async function approveAnswer(workspaceId: string, formData: FormData): Pr
       workspaceId
     });
   }
+
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { name: true, dealCode: true }
+  });
+  const base = appBaseUrl();
+  await postToTeamsSafe(workspaceId, {
+    title: `Answer ready — ${workspace?.name ?? "deal"}`,
+    subtitle: workspace?.dealCode ?? undefined,
+    facts: [
+      { title: "Thread", value: message.thread.title ?? "Untitled" },
+      {
+        title: "Action",
+        value: parsed.data.editedContent ? "Approved (edited)" : "Approved"
+      },
+      { title: "By", value: user.name ?? user.email }
+    ],
+    actions: base
+      ? [
+          {
+            type: "Action.OpenUrl",
+            title: "Open thread",
+            url: `${base}/deals/${workspaceId}/chat?thread=${message.threadId}`
+          }
+        ]
+      : [],
+    accent: "good"
+  });
 
   await logAudit({
     actorId: user.id,
@@ -137,6 +174,31 @@ export async function replyOnTop(workspaceId: string, formData: FormData): Promi
       workspaceId
     });
   }
+
+  const ws = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { name: true, dealCode: true }
+  });
+  const base = appBaseUrl();
+  await postToTeamsSafe(workspaceId, {
+    title: `Deal team replied — ${ws?.name ?? "deal"}`,
+    subtitle: ws?.dealCode ?? undefined,
+    facts: [
+      { title: "Thread", value: message.thread.title ?? "Untitled" },
+      { title: "By", value: user.name ?? user.email }
+    ],
+    body: parsed.data.content.slice(0, 600),
+    actions: base
+      ? [
+          {
+            type: "Action.OpenUrl",
+            title: "Open thread",
+            url: `${base}/deals/${workspaceId}/chat?thread=${message.threadId}`
+          }
+        ]
+      : [],
+    accent: "good"
+  });
 
   await logAudit({
     actorId: user.id,

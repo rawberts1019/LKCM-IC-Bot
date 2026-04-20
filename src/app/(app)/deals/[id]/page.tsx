@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
+import { env } from "@/env";
 import { Markdown } from "@/components/markdown";
 import { MemberAddForm } from "./member-add-form";
 import { PipedriveContext, type PipedriveMeta } from "./pipedrive-context";
 import { RiskRegister, type RiskRow } from "./risk-register";
 import { ArchiveButton } from "./archive-button";
+import { TeamsWebhookForm } from "./teams-webhook-form";
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -258,6 +260,21 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
         {canManage ? <MemberAddForm workspaceId={id} /> : null}
       </section>
+
+      {canManage ? (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Teams notifications
+          </h2>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <TeamsWebhookForm
+              workspaceId={id}
+              initialUrl={workspace.teamsWebhookUrl}
+              firmDefaultConfigured={Boolean(env.TEAMS_DEFAULT_WEBHOOK_URL)}
+            />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

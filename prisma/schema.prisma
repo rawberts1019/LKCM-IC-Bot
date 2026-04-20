@@ -111,6 +111,10 @@ model Workspace {
   // Shape: { value, currency, expectedCloseDate, probability, dealLabel,
   //          owner, person, organization, dealCustomFields, lastSyncedAt }
   pipedriveMeta   Json?
+  // Per-deal Microsoft Teams incoming webhook URL. Null = falls back to the
+  // firm-wide TEAMS_DEFAULT_WEBHOOK_URL env var if set. Overriding per deal
+  // lets a specific deal post into a dedicated channel.
+  teamsWebhookUrl String?
   createdById  String
   createdBy    User            @relation("WorkspaceCreatedBy", fields: [createdById], references: [id])
   createdAt    DateTime        @default(now())

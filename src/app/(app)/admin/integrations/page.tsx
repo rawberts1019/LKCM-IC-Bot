@@ -29,6 +29,39 @@ export default async function AdminIntegrationsPage() {
 
       <section className="rounded-lg border border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900">Microsoft Teams</h2>
+          <StatusPill ok={Boolean(env.TEAMS_DEFAULT_WEBHOOK_URL)} />
+        </div>
+        <div className="mt-3 space-y-3 text-sm text-slate-700">
+          <Row
+            label="Firm-wide webhook URL"
+            ok={Boolean(env.TEAMS_DEFAULT_WEBHOOK_URL)}
+            notes="env TEAMS_DEFAULT_WEBHOOK_URL — used when a deal doesn't have its own override"
+          />
+        </div>
+        <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">
+          <div className="font-semibold uppercase tracking-wide text-slate-500">
+            Teams webhook setup
+          </div>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-slate-700">
+            <li>In Teams, pick the channel you want notifications in.</li>
+            <li>
+              <em>⋯ menu on the channel → Workflows → Post to a channel when a webhook
+              request is received</em>. (If your tenant still has the legacy Office 365
+              connector, use <em>⋯ → Manage channel → Connectors → Incoming Webhook</em>.)
+            </li>
+            <li>Name the workflow (e.g. &quot;LKCM IC Bot&quot;), pick the channel, finish.</li>
+            <li>Copy the generated URL.</li>
+            <li>
+              Paste it either as <code>TEAMS_DEFAULT_WEBHOOK_URL</code> in Vercel env vars
+              (firm-wide default), or per-deal on the deal page. Redeploy after setting env.
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900">Pipedrive</h2>
           <StatusPill ok={isPipedriveConfigured()} />
         </div>
