@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireWorkspaceAccess } from "@/lib/access";
+import { requireWorkspaceAccess, canManageWorkspace } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
 import { Markdown } from "@/components/markdown";
+import { formatForExport } from "@/lib/export";
 import { Composer } from "./composer";
+import { MessageActions } from "./message-actions";
+import { DocsPanel } from "./docs-panel";
 
 // Claude PDF reads can take 20-40s on a full IC packet; give server actions
 // invoked from this route the full Vercel function budget.
@@ -24,7 +27,7 @@ export default async function ChatPage({
   const workspace = await prisma.workspace.findUnique({ where: { id } });
   if (!workspace) notFound();
 
-  const canManage = user.role === "admin" || membership?.role === "owner" || membership?.role === "dealteam";
+  const canManage = canManageWorkspace(membership?.role, user.role);
 
   // Deal-team members see all threads for their deal; IC members see only their own.
   const threads = await prisma.thread.findMany({
@@ -50,9 +53,25 @@ export default async function ChatPage({
       })
     : null;
 
-  const documentsReady = await prisma.document.count({
-    where: { workspaceId: id, status: "ready" }
-  });
+  const [documentsReady, allDocuments] = await Promise.all([
+    prisma.document.count({ where: { workspaceId: id, status: "ready" } }),
+    prisma.document.findMany({
+      where: { workspaceId: id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        filename: true,
+        mimeType: true,
+        sizeBytes: true,
+        status: true,
+        storageKey: true,
+        createdAt: true
+      }
+    })
+  ]);
+
+  const activeQuestion =
+    activeThread?.messages.find((m) => m.role === "user")?.content ?? "";
 
   return (
     <div className="grid grid-cols-12 gap-6">
@@ -101,7 +120,7 @@ export default async function ChatPage({
         </ul>
       </aside>
 
-      <section className="col-span-12 md:col-span-8 lg:col-span-9">
+      <section className="col-span-12 md:col-span-8 lg:col-span-6">
         <div className="flex h-[calc(100vh-10rem)] flex-col rounded-lg border border-slate-200 bg-white">
           <div className="flex-1 overflow-y-auto p-6">
             {!activeThread || activeThread.messages.length === 0 ? (
@@ -112,6 +131,20 @@ export default async function ChatPage({
                   const sources =
                     (m.citationsJson as { sources?: Array<{ filename: string; page?: number }> } | null)
                       ?.sources ?? [];
+                  const exportText =
+                    m.role === "assistant" || m.role === "dealteam"
+                      ? formatForExport({
+                          workspaceName: workspace.name,
+                          dealCode: workspace.dealCode,
+                          threadTitle: activeThread.title,
+                          question: activeQuestion,
+                          answer: m.content,
+                          createdAt: m.createdAt,
+                          confidence: m.confidence,
+                          authorLabel: m.role === "dealteam" ? "Deal team" : "IC Bot",
+                          sources
+                        })
+                      : "";
                   return (
                     <li key={m.id} className="flex flex-col gap-1">
                       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -165,6 +198,13 @@ export default async function ChatPage({
                           </ul>
                         </details>
                       ) : null}
+                      {(m.role === "assistant" || m.role === "dealteam") && m.status === "sent" ? (
+                        <MessageActions
+                          workspaceId={id}
+                          messageId={m.id}
+                          exportText={exportText}
+                        />
+                      ) : null}
                       {m.status === "queued" ? (
                         <div className="text-xs text-amber-700">
                           {canManage
@@ -188,6 +228,10 @@ export default async function ChatPage({
           </div>
         </div>
       </section>
+
+      <aside className="col-span-12 lg:col-span-3">
+        <DocsPanel workspaceId={id} canManage={canManage} documents={allDocuments} />
+      </aside>
     </div>
   );
 }
