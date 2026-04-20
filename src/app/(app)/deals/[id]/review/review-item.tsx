@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Markdown } from "@/components/markdown";
 import { approveAnswer, replyOnTop } from "./actions";
 
 export function ReviewItem({
@@ -78,8 +79,8 @@ export function ReviewItem({
             className="mt-1 w-full rounded-md border border-slate-300 p-3 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
         ) : (
-          <div className="mt-1 whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-900">
-            {draftAnswer}
+          <div className="mt-1 rounded-md border border-slate-200 bg-white p-3">
+            <Markdown>{draftAnswer}</Markdown>
           </div>
         )}
         {sources.length > 0 ? (

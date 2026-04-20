@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
+import { Markdown } from "@/components/markdown";
 import { Composer } from "./composer";
 
 // Claude PDF reads can take 20-40s on a full IC packet; give server actions
@@ -133,15 +134,21 @@ export default async function ChatPage({
                         ) : null}
                       </div>
                       <div
-                        className={`whitespace-pre-wrap rounded-lg border p-3 text-sm ${
+                        className={`rounded-lg border p-3 ${
                           m.role === "user"
-                            ? "border-slate-200 bg-slate-50 text-slate-900"
+                            ? "border-slate-200 bg-slate-50"
                             : m.role === "dealteam"
-                              ? "border-indigo-200 bg-indigo-50 text-slate-900"
-                              : "border-slate-200 bg-white text-slate-900"
+                              ? "border-indigo-200 bg-indigo-50"
+                              : "border-slate-200 bg-white"
                         }`}
                       >
-                        {m.content}
+                        {m.role === "user" ? (
+                          <div className="whitespace-pre-wrap text-sm text-slate-900">
+                            {m.content}
+                          </div>
+                        ) : (
+                          <Markdown>{m.content}</Markdown>
+                        )}
                       </div>
                       {sources.length > 0 && m.role === "assistant" ? (
                         <details className="mt-1 text-xs text-slate-600">

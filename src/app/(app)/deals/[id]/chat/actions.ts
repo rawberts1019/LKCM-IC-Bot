@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess } from "@/lib/access";
 import { logAudit } from "@/lib/audit";
+import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { getObjectBytes } from "@/lib/storage";
 import { env } from "@/env";
@@ -98,26 +99,9 @@ export async function askQuestion(workspaceId: string, formData: FormData): Prom
     });
   }
 
-  // Save the user's question first so it shows even if the LLM call fails
-  const userMessage = await prisma.message.create({
-    data: {
-      threadId: thread.id,
-      role: "user",
-      content: question,
-      createdById: user.id
-    }
-  });
-
-  await logAudit({
-    actorId: user.id,
-    action: "message.ask",
-    targetType: "message",
-    targetId: userMessage.id,
-    workspaceId,
-    metadata: { threadId: thread.id }
-  });
-
-  // Load thread history (including the message we just wrote)
+  // Load thread history. We intentionally do NOT save the user's question yet
+  // — if the LLM call fails with a transient error we throw back to the
+  // composer and leave the thread untouched.
   const history = await prisma.message.findMany({
     where: { threadId: thread.id, status: { in: ["sent", "superseded"] } },
     orderBy: { createdAt: "asc" }
@@ -146,7 +130,6 @@ export async function askQuestion(workspaceId: string, formData: FormData): Prom
 
   // Build the user turn: documents first, then recap of prior turns as text, then new question
   const priorTurnsAsText = history
-    .slice(0, -1) // everything except the just-written user msg
     .map((m) => {
       const who =
         m.role === "user" ? "User previously asked" : m.role === "dealteam" ? "Deal team noted" : "You previously answered";
@@ -167,10 +150,12 @@ export async function askQuestion(workspaceId: string, formData: FormData): Prom
     }
   ];
 
-  // Call Claude. On any failure, we still save a placeholder assistant message
-  // so the user sees something and the deal team can pick it up in review.
+  // Call Claude. Transient errors (rate limit, 5xx, auth, network) throw back
+  // to the composer so the user can retry — nothing is saved to the thread.
+  // Permanent / unknown errors fall through and get persisted as a queued
+  // message so the deal team can take over.
   let payload: AnswerPayload | null = null;
-  let failureReason: string | null = null;
+  let permanentErrorReason: string | null = null;
   try {
     const response = await anthropic().messages.create({
       model: MODEL,
@@ -187,7 +172,32 @@ export async function askQuestion(workspaceId: string, formData: FormData): Prom
     }
     payload = toolUse.input as AnswerPayload;
   } catch (e) {
-    failureReason = e instanceof Error ? e.message : String(e);
+    if (e instanceof Anthropic.APIError) {
+      if (e.status === 429) {
+        throw new Error(
+          "Claude is rate-limited for LKCM right now. Wait 30–60 seconds and ask again. Large PDFs burn through the per-minute token quota fast — trim the corpus if this keeps happening."
+        );
+      }
+      if (e.status && e.status >= 500) {
+        throw new Error("Claude service error. Try again in a moment.");
+      }
+      if (e.status === 401 || e.status === 403) {
+        throw new Error(
+          "Anthropic API key missing or invalid. Ask an admin to check ANTHROPIC_API_KEY in Vercel."
+        );
+      }
+      if (e.status === 400) {
+        // Bad request — often a too-large payload. Persist so the team can see.
+        permanentErrorReason = `anthropic_bad_request: ${e.message.slice(0, 200)}`;
+      } else {
+        permanentErrorReason = `anthropic_error_${e.status ?? "unknown"}`;
+      }
+    } else if (e instanceof Error) {
+      // Unknown error — persist for review but don't leak the raw message to IC.
+      permanentErrorReason = e.message.slice(0, 200);
+    } else {
+      permanentErrorReason = "unknown_error";
+    }
   }
 
   // Decide routing
@@ -197,11 +207,31 @@ export async function askQuestion(workspaceId: string, formData: FormData): Prom
 
   const answerText =
     payload?.answer ??
-    `I wasn't able to produce a confident answer — the deal team will take a look.\n\n_(Internal note: ${failureReason ?? "unknown error"})_`;
+    "I wasn't able to produce an answer to this — the deal team will take a look and get back to you.";
 
   const sourcesJson = payload
     ? { sources: payload.sources, confidence: payload.confidence, sensitivityFlagged: payload.sensitivity_flagged }
-    : { sources: [], confidence: 0, sensitivityFlagged: true, error: failureReason };
+    : { sources: [], confidence: 0, sensitivityFlagged: true, error: permanentErrorReason };
+
+  // Now that we're committing to persist this turn, save the user message
+  // followed by the assistant message so they appear together in the thread.
+  const userMessage = await prisma.message.create({
+    data: {
+      threadId: thread.id,
+      role: "user",
+      content: question,
+      createdById: user.id
+    }
+  });
+
+  await logAudit({
+    actorId: user.id,
+    action: "message.ask",
+    targetType: "message",
+    targetId: userMessage.id,
+    workspaceId,
+    metadata: { threadId: thread.id }
+  });
 
   const assistantMessage = await prisma.message.create({
     data: {
