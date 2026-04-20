@@ -1,16 +1,24 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { uploadDocuments } from "./actions";
+import { useRouter } from "next/navigation";
+import { upload } from "@vercel/blob/client";
+
+function safeName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
 
 export function UploadForm({ workspaceId }: { workspaceId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
+    setStatus(null);
     const picked = Array.from(e.target.files ?? []);
     setFiles(picked);
   }
@@ -22,14 +30,32 @@ export function UploadForm({ workspaceId }: { workspaceId: string }) {
       return;
     }
     setError(null);
-    const fd = new FormData();
-    for (const f of files) fd.append("files", f);
+
     startTransition(async () => {
       try {
-        await uploadDocuments(workspaceId, fd);
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          setStatus(`Uploading ${i + 1} of ${files.length}: ${file.name}`);
+          const pathname = `workspaces/${workspaceId}/${crypto.randomUUID()}-${safeName(
+            file.name
+          )}`;
+          await upload(pathname, file, {
+            access: "public",
+            handleUploadUrl: "/api/upload/handle",
+            contentType: file.type,
+            clientPayload: JSON.stringify({
+              workspaceId,
+              filename: file.name,
+              sizeBytes: file.size
+            })
+          });
+        }
+        setStatus(null);
         setFiles([]);
         formRef.current?.reset();
+        router.refresh();
       } catch (e) {
+        setStatus(null);
         setError(e instanceof Error ? e.message : "Upload failed.");
       }
     });
@@ -74,6 +100,12 @@ export function UploadForm({ workspaceId }: { workspaceId: string }) {
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {status ? (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          {status}
+        </div>
       ) : null}
 
       {error ? (
