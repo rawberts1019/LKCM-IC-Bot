@@ -8,6 +8,7 @@ import { formatForExport } from "@/lib/export";
 import { Composer } from "./composer";
 import { MessageActions } from "./message-actions";
 import { DocsPanel } from "./docs-panel";
+import { PackPicker } from "./pack-picker";
 
 // Claude PDF reads can take 20-40s on a full IC packet; give server actions
 // invoked from this route the full Vercel function budget.
@@ -220,6 +221,9 @@ export default async function ChatPage({
           </div>
 
           <div className="border-t border-slate-200 p-4">
+            <div className="mb-2 flex justify-end">
+              <PackPicker workspaceId={id} />
+            </div>
             <Composer
               workspaceId={id}
               threadId={activeThread?.id}
