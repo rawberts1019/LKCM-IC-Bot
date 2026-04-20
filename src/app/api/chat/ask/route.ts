@@ -7,6 +7,7 @@ import {
   SYSTEM_PROMPT,
   buildChatRequest,
   extractPartialAnswer,
+  maybeAutoTitleThread,
   persistChatTurn,
   type AnswerPayload
 } from "@/lib/chat-runtime";
@@ -167,6 +168,15 @@ export async function POST(request: Request): Promise<Response> {
           payload,
           permanentErrorReason
         });
+        // Auto-title the thread on the very first Q&A. Added to the response
+        // time, but Haiku keeps this under 1-2s typical.
+        if (payload) {
+          await maybeAutoTitleThread({
+            threadId: thread.id,
+            question: body.question,
+            answer: payload.answer
+          });
+        }
         controller.enqueue(
           encode({
             type: "done",

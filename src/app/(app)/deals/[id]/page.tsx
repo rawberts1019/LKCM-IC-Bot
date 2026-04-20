@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireWorkspaceAccess } from "@/lib/access";
 import { formatDateTime } from "@/lib/utils";
+import { Markdown } from "@/components/markdown";
 import { MemberAddForm } from "./member-add-form";
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,6 +29,20 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
   const canManage = user.role === "admin" || membership?.role === "owner" || membership?.role === "dealteam";
   const pendingReviews = workspace.reviewQueue.length;
+
+  const pinnedAnswers = await prisma.message.findMany({
+    where: {
+      thread: { workspaceId: id },
+      pinnedAt: { not: null },
+      role: { not: "user" },
+      status: { not: "superseded" }
+    },
+    orderBy: { pinnedAt: "desc" },
+    take: 10,
+    include: {
+      thread: { select: { id: true, title: true } }
+    }
+  });
 
   return (
     <div className="space-y-8">
@@ -88,6 +103,39 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           accent={pendingReviews > 0}
         />
       </div>
+
+      {pinnedAnswers.length > 0 ? (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Pinned answers
+          </h2>
+          <ul className="space-y-3">
+            {pinnedAnswers.map((m) => (
+              <li
+                key={m.id}
+                className="rounded-lg border border-amber-200 bg-amber-50/40 p-4"
+              >
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span className="font-medium">
+                    {m.role === "dealteam" ? "Deal team" : "IC Bot"}
+                    {" · "}
+                    <Link
+                      href={`/deals/${id}/chat?thread=${m.thread.id}`}
+                      className="underline underline-offset-2 hover:text-slate-900"
+                    >
+                      {m.thread.title ?? "Untitled thread"}
+                    </Link>
+                  </span>
+                  <span className="text-slate-500">{formatDateTime(m.pinnedAt!)}</span>
+                </div>
+                <div className="mt-2">
+                  <Markdown>{m.content}</Markdown>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">

@@ -9,6 +9,7 @@ import { Composer } from "./composer";
 import { MessageActions } from "./message-actions";
 import { DocsPanel } from "./docs-panel";
 import { PackPicker } from "./pack-picker";
+import { ThreadSearch } from "./thread-search";
 
 // Claude PDF reads can take 20-40s on a full IC packet; give server actions
 // invoked from this route the full Vercel function budget.
@@ -74,6 +75,43 @@ export default async function ChatPage({
   const activeQuestion =
     activeThread?.messages.find((m) => m.role === "user")?.content ?? "";
 
+  // Per-message feedback state: current user's vote + aggregate counts.
+  // Only relevant for assistant/dealteam messages in the active thread.
+  const feedbackable = (activeThread?.messages ?? []).filter(
+    (m) => m.role !== "user"
+  );
+  const messageIds = feedbackable.map((m) => m.id);
+  const [allFeedback, myFeedback] = messageIds.length
+    ? await Promise.all([
+        prisma.messageFeedback.groupBy({
+          by: ["messageId", "vote"],
+          where: { messageId: { in: messageIds } },
+          _count: { _all: true }
+        }),
+        prisma.messageFeedback.findMany({
+          where: { messageId: { in: messageIds }, userId: user.id },
+          select: { messageId: true, vote: true }
+        })
+      ])
+    : [[], []];
+
+  const feedbackByMsg = new Map<
+    string,
+    { up: number; down: number; userVote: "up" | "down" | null }
+  >();
+  for (const id of messageIds) {
+    feedbackByMsg.set(id, { up: 0, down: 0, userVote: null });
+  }
+  for (const row of allFeedback) {
+    const r = feedbackByMsg.get(row.messageId)!;
+    if (row.vote === "up") r.up = row._count._all;
+    else if (row.vote === "down") r.down = row._count._all;
+  }
+  for (const row of myFeedback) {
+    const r = feedbackByMsg.get(row.messageId);
+    if (r) r.userVote = row.vote as "up" | "down";
+  }
+
   return (
     <div className="grid grid-cols-12 gap-6">
       <aside className="col-span-12 md:col-span-4 lg:col-span-3">
@@ -88,6 +126,9 @@ export default async function ChatPage({
           >
             + New
           </Link>
+        </div>
+        <div className="mb-2">
+          <ThreadSearch workspaceId={id} />
         </div>
         <ul className="space-y-1">
           {threads.length === 0 ? (
@@ -204,6 +245,10 @@ export default async function ChatPage({
                           workspaceId={id}
                           messageId={m.id}
                           exportText={exportText}
+                          initialPinned={Boolean(m.pinnedAt)}
+                          initialUserVote={feedbackByMsg.get(m.id)?.userVote ?? null}
+                          initialUpCount={feedbackByMsg.get(m.id)?.up ?? 0}
+                          initialDownCount={feedbackByMsg.get(m.id)?.down ?? 0}
                         />
                       ) : null}
                       {m.status === "queued" ? (

@@ -189,14 +189,33 @@ model Message {
   // assistant messages only; null otherwise
   confidence     Float?
   sensitivityFlagged Boolean    @default(false)
+  // When set, this message is pinned to the deal's Pinned Answers section.
+  pinnedAt       DateTime?
   createdById    String?
   createdBy      User?          @relation(fields: [createdById], references: [id])
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
   reviewItem     ReviewQueueItem?
+  feedback       MessageFeedback[]
 
   @@index([threadId, createdAt])
+  @@index([pinnedAt])
+}
+
+// One row per (user, message) vote. Signal only — doesn't change the
+// message's routing. Used for future calibration + surfacing high-value
+// answers.
+model MessageFeedback {
+  id         String   @id @default(cuid())
+  messageId  String
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId     String
+  vote       String   // "up" | "down"
+  createdAt  DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([messageId])
 }
 
 model ReviewQueueItem {

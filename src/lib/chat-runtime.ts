@@ -4,6 +4,7 @@ import { getObjectBytes } from "./storage";
 import { MIME_PDF } from "./extraction";
 import { logAudit } from "./audit";
 import { createNotifications, dealTeamMemberIds } from "./notifications";
+import { anthropic } from "./anthropic";
 import { env } from "@/env";
 
 export const SYSTEM_PROMPT = `You are the LKCM Investment Committee assistant. You answer questions about a specific deal using ONLY the documents provided to you in this conversation.
@@ -271,6 +272,43 @@ export async function persistChatTurn(options: {
     confidence: payload?.confidence ?? 0,
     sources: payload?.sources ?? []
   };
+}
+
+/**
+ * Best-effort: when a thread just got its first Q&A, ask a fast model to
+ * generate a tighter sidebar title (4–6 words). Silent on any failure —
+ * the original first-question title is a fine fallback.
+ */
+export async function maybeAutoTitleThread(options: {
+  threadId: string;
+  question: string;
+  answer: string;
+}): Promise<void> {
+  try {
+    const count = await prisma.message.count({ where: { threadId: options.threadId } });
+    // Only title threads on the very first completed Q&A (user + assistant = 2).
+    if (count > 2) return;
+
+    const resp = await anthropic().messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 40,
+      system:
+        "You write terse sidebar labels for IC Q&A threads. Respond with a 3–6 word title in Title Case, no quotes, no trailing punctuation. Focus on the topic being asked about.",
+      messages: [
+        {
+          role: "user" as const,
+          content: `Question: ${options.question}\n\nAnswer: ${options.answer.slice(0, 1000)}\n\nWrite the title.`
+        }
+      ]
+    });
+    const block = resp.content.find((b) => b.type === "text");
+    if (!block || block.type !== "text") return;
+    const title = block.text.trim().replace(/^["']|["']$/g, "").slice(0, 80);
+    if (!title) return;
+    await prisma.thread.update({ where: { id: options.threadId }, data: { title } });
+  } catch {
+    // Title generation is non-critical; ignore all errors.
+  }
 }
 
 /**
