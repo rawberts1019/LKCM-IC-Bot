@@ -7,6 +7,7 @@ import { Markdown } from "@/components/markdown";
 import { MemberAddForm } from "./member-add-form";
 import { PipedriveContext, type PipedriveMeta } from "./pipedrive-context";
 import { RiskRegister, type RiskRow } from "./risk-register";
+import { ArchiveButton } from "./archive-button";
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -31,6 +32,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
   const canManage = user.role === "admin" || membership?.role === "owner" || membership?.role === "dealteam";
   const pendingReviews = workspace.reviewQueue.length;
+  const isArchived = workspace.status === "archived";
 
   const [pinnedAnswers, risks] = await Promise.all([
     prisma.message.findMany({
@@ -85,6 +87,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                   {workspace.stageName}
                 </span>
               ) : null}
+              {isArchived ? (
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
+                  archived · read-only
+                </span>
+              ) : null}
               {workspace.pipedriveUrl ? (
                 <a
                   href={workspace.pipedriveUrl}
@@ -97,24 +104,36 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               ) : null}
             </div>
           </div>
-          <div className="flex gap-2">
-            <Link
-              href={`/deals/${id}/chat`}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              Ask a question
-            </Link>
-            {canManage ? (
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex gap-2">
               <Link
-                href={`/deals/${id}/upload`}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                href={`/deals/${id}/chat`}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
               >
-                Upload files
+                Ask a question
               </Link>
+              {canManage && !isArchived ? (
+                <Link
+                  href={`/deals/${id}/upload`}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                >
+                  Upload files
+                </Link>
+              ) : null}
+            </div>
+            {canManage ? (
+              <ArchiveButton workspaceId={id} archived={isArchived} />
             ) : null}
           </div>
         </div>
       </div>
+
+      {isArchived ? (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          This deal is archived and read-only. Past questions, documents, and risks stay visible;
+          new uploads, questions, and risk edits are blocked until it&apos;s unarchived.
+        </div>
+      ) : null}
 
       {workspace.pipedriveMeta ? (
         <PipedriveContext

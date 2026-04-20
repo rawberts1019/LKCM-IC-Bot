@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireUser, requireWorkspaceAccess } from "@/lib/access";
+import {
+  assertActive,
+  canManageWorkspace,
+  requireUser,
+  requireWorkspaceAccess
+} from "@/lib/access";
 import { logAudit } from "@/lib/audit";
 import { searchDirectory } from "@/lib/graph";
 import {
@@ -171,6 +176,7 @@ export async function addMember(formData: FormData): Promise<void> {
   if (user.role !== "admin" && membership?.role !== "owner" && membership?.role !== "dealteam") {
     throw new Error("Only the deal team can add members.");
   }
+  await assertActive(workspaceId);
 
   // Best-effort directory lookup so the placeholder row shows a name and
   // entraOid immediately, rather than waiting for the user's first sign-in.
@@ -267,4 +273,36 @@ export async function refreshPipedrive(workspaceId: string): Promise<void> {
   });
 
   revalidatePath(`/deals/${workspaceId}`);
+}
+
+/**
+ * Freezes a deal post-IC: no new questions, uploads, members, risk edits, or
+ * pipedrive refreshes. Historical content stays visible and readable.
+ * Only deal-team members (owner/dealteam) or admins can archive/unarchive.
+ */
+export async function setWorkspaceStatus(input: {
+  workspaceId: string;
+  archived: boolean;
+}): Promise<void> {
+  const { user, membership } = await requireWorkspaceAccess(input.workspaceId);
+  if (!canManageWorkspace(membership?.role, user.role)) {
+    throw new Error("Only the deal team can archive or unarchive a deal.");
+  }
+
+  await prisma.workspace.update({
+    where: { id: input.workspaceId },
+    data: { status: input.archived ? "archived" : "active" }
+  });
+
+  await logAudit({
+    actorId: user.id,
+    action: input.archived ? "workspace.archive" : "workspace.unarchive",
+    targetType: "workspace",
+    targetId: input.workspaceId,
+    workspaceId: input.workspaceId
+  });
+
+  revalidatePath("/deals");
+  revalidatePath(`/deals/${input.workspaceId}`);
+  revalidatePath("/dashboard");
 }

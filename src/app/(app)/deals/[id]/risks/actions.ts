@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db";
-import { requireWorkspaceAccess } from "@/lib/access";
+import { assertActive, requireWorkspaceAccess } from "@/lib/access";
 import { logAudit } from "@/lib/audit";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { buildChatRequest } from "@/lib/chat-runtime";
@@ -22,6 +22,7 @@ const addSchema = z.object({
 export async function addRisk(input: z.infer<typeof addSchema>): Promise<void> {
   const parsed = addSchema.parse(input);
   const { user } = await requireWorkspaceAccess(parsed.workspaceId);
+  await assertActive(parsed.workspaceId);
 
   const risk = await prisma.risk.create({
     data: {
@@ -167,6 +168,7 @@ export async function extractRisks(
 ): Promise<{ added: number }> {
   const parsed = extractSchema.parse(input);
   const { user } = await requireWorkspaceAccess(parsed.workspaceId);
+  await assertActive(parsed.workspaceId);
 
   // Leverage the existing pipeline — same doc blocks, same prompt-caching
   // benefit across multiple analyst operations.

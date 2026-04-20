@@ -6,12 +6,13 @@ export default async function DashboardPage() {
   const user = await requireUser();
 
   // Workspaces the user has access to. Admins see everything; everyone else
-  // sees only the deals they're members of.
+  // sees only the deals they're members of. Archived deals stay out of the
+  // dashboard — partners care about live diligence.
   const workspaces = await prisma.workspace.findMany({
     where:
       user.role === "admin"
-        ? {}
-        : { members: { some: { userId: user.id } } },
+        ? { status: "active" }
+        : { status: "active", members: { some: { userId: user.id } } },
     orderBy: { updatedAt: "desc" },
     include: {
       members: {

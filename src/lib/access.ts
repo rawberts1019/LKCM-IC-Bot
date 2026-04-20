@@ -52,3 +52,21 @@ export function canManageWorkspace(membershipRole: string | undefined, userRole:
   if (userRole === "admin") return true;
   return membershipRole === "owner" || membershipRole === "dealteam";
 }
+
+/**
+ * Guards write paths on archived deals. Reads + pin/vote/read-only curation
+ * are still allowed; any action that creates new content (questions, docs,
+ * members, risks, refreshes) should call this first.
+ */
+export async function assertActive(workspaceId: string): Promise<void> {
+  const row = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { status: true }
+  });
+  if (!row) throw new Error("Deal not found.");
+  if (row.status === "archived") {
+    throw new Error(
+      "This deal is archived and read-only. Unarchive it to make changes."
+    );
+  }
+}

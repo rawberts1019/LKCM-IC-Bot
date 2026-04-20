@@ -26,6 +26,8 @@ export default async function UploadPage({ params }: { params: Promise<{ id: str
   });
   if (!workspace) notFound();
 
+  const isArchived = workspace.status === "archived";
+
   return (
     <div className="space-y-8">
       <div>
@@ -40,7 +42,13 @@ export default async function UploadPage({ params }: { params: Promise<{ id: str
         </p>
       </div>
 
-      <UploadForm workspaceId={id} />
+      {isArchived ? (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          This deal is archived and read-only. Unarchive it from the deal page to upload new files.
+        </div>
+      ) : (
+        <UploadForm workspaceId={id} />
+      )}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">

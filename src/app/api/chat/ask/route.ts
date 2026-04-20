@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { requireWorkspaceAccess } from "@/lib/access";
+import { assertActive, requireWorkspaceAccess } from "@/lib/access";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import {
   ANSWER_TOOL,
@@ -51,6 +51,7 @@ export async function POST(request: Request): Promise<Response> {
   let user, prepared;
   try {
     ({ user } = await requireWorkspaceAccess(body.workspaceId));
+    await assertActive(body.workspaceId);
     prepared = await buildChatRequest({
       workspaceId: body.workspaceId,
       threadId: body.threadId,

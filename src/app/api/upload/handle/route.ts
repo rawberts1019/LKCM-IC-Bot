@@ -45,14 +45,23 @@ export async function POST(request: Request): Promise<NextResponse> {
           throw new Error("Missing workspaceId or filename.");
         }
 
-        const [membership, user] = await Promise.all([
+        const [membership, user, workspace] = await Promise.all([
           prisma.workspaceMember.findUnique({
             where: {
               workspaceId_userId: { workspaceId: payload.workspaceId, userId }
             }
           }),
-          prisma.user.findUnique({ where: { id: userId }, select: { role: true } })
+          prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+          prisma.workspace.findUnique({
+            where: { id: payload.workspaceId },
+            select: { status: true }
+          })
         ]);
+
+        if (!workspace) throw new Error("Deal not found.");
+        if (workspace.status === "archived") {
+          throw new Error("This deal is archived. Unarchive it to upload new files.");
+        }
 
         const isAdmin = user?.role === "admin";
         if (!membership && !isAdmin) {
