@@ -208,6 +208,13 @@ model Message {
   // assistant messages only; null otherwise
   confidence     Float?
   sensitivityFlagged Boolean    @default(false)
+  // Anthropic usage for assistant messages; populated at persist time.
+  // cachedTokens splits cache_read (fast, cheap) from cache_creation (one-time
+  // cost of seeding the cache with the doc blocks).
+  inputTokens        Int?
+  outputTokens       Int?
+  cacheCreationTokens Int?
+  cacheReadTokens    Int?
   // When set, this message is pinned to the deal's Pinned Answers section.
   pinnedAt       DateTime?
   createdById    String?

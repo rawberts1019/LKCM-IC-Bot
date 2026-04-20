@@ -75,6 +75,12 @@ export async function POST(request: Request): Promise<Response> {
       let accumulatedJson = "";
       let payload: AnswerPayload | null = null;
       let permanentErrorReason: string | null = null;
+      let usage: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+      } | null = null;
 
       try {
         const messageStream = anthropic().messages.stream({
@@ -103,6 +109,7 @@ export async function POST(request: Request): Promise<Response> {
         }
 
         const finalMessage = await messageStream.finalMessage();
+        usage = finalMessage.usage ?? null;
         const toolUse = finalMessage.content.find((b) => b.type === "tool_use");
         if (toolUse && toolUse.type === "tool_use") {
           payload = toolUse.input as AnswerPayload;
@@ -167,7 +174,8 @@ export async function POST(request: Request): Promise<Response> {
           thread,
           question: body.question,
           payload,
-          permanentErrorReason
+          permanentErrorReason,
+          usage
         });
         // Auto-title the thread on the very first Q&A. Added to the response
         // time, but Haiku keeps this under 1-2s typical.

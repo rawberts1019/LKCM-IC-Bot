@@ -156,6 +156,13 @@ export async function buildChatRequest(options: {
   return { thread, threadExisted, apiMessages };
 }
 
+export type TokenUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+};
+
 /**
  * Persist the final state of a chat turn after the Anthropic call completes
  * (or fails). Handles the user message, the assistant message, review-queue
@@ -169,6 +176,7 @@ export async function persistChatTurn(options: {
   question: string;
   payload: AnswerPayload | null;
   permanentErrorReason?: string | null;
+  usage?: TokenUsage | null;
 }): Promise<{
   assistantMessageId: string;
   shouldQueue: boolean;
@@ -176,7 +184,7 @@ export async function persistChatTurn(options: {
   confidence: number;
   sources: AnswerPayload["sources"];
 }> {
-  const { workspaceId, userId, thread, question, payload, permanentErrorReason } = options;
+  const { workspaceId, userId, thread, question, payload, permanentErrorReason, usage } = options;
 
   const threshold = env.CONFIDENCE_AUTO_SEND_THRESHOLD;
   const shouldQueue = !payload || payload.confidence < threshold || payload.sensitivity_flagged;
@@ -218,7 +226,11 @@ export async function persistChatTurn(options: {
       content: answerText,
       citationsJson: sourcesJson,
       confidence: payload?.confidence ?? 0,
-      sensitivityFlagged: payload?.sensitivity_flagged ?? true
+      sensitivityFlagged: payload?.sensitivity_flagged ?? true,
+      inputTokens: usage?.input_tokens ?? null,
+      outputTokens: usage?.output_tokens ?? null,
+      cacheCreationTokens: usage?.cache_creation_input_tokens ?? null,
+      cacheReadTokens: usage?.cache_read_input_tokens ?? null
     }
   });
 
